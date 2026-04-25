@@ -17,18 +17,28 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
+
+      if (!data.session) {
+        setError('No session returned — please try again.')
+        setLoading(false)
+        return
+      }
+
+      const accent = localStorage.getItem('scoutly_accent')
+      router.push(accent ? '/queue' : '/setup')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unexpected error — check console.')
       setLoading(false)
-      return
     }
-
-    // Check if accent has been chosen
-    const accent = localStorage.getItem('scoutly_accent')
-    router.push(accent ? '/queue' : '/setup')
   }
 
   return (
