@@ -1,6 +1,12 @@
-import { Settings, User, Key, Target, Palette } from 'lucide-react'
+import { Settings, User, Key, Target, Palette, ShieldOff, BookOpen, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
+import { isLemlistConnected } from '@/lib/lemlist'
+import { isHubSpotConnected } from '@/lib/hubspot'
 
 export default function SettingsPage() {
+  const lemlistOn = isLemlistConnected()
+  const hubspotOn = isHubSpotConnected()
+
   return (
     <div className="p-6 max-w-2xl">
       <div className="flex items-center gap-2 mb-6">
@@ -35,25 +41,26 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* API Keys */}
+        {/* API Connections */}
         <section className="bg-surface border border-border rounded-lg p-4">
           <div className="flex items-center gap-2 mb-4">
             <Key className="w-3.5 h-3.5 text-accent" />
-            <h2 className="text-xs font-semibold text-fg">API Keys</h2>
+            <h2 className="text-xs font-semibold text-fg">API Connections</h2>
+            <span className="text-xs text-fg-3 ml-1">— wired in Phase 8</span>
           </div>
           <div className="space-y-3">
             {[
-              { label: 'Lemlist API Key', placeholder: 'Placeholder — Phase 5' },
-              { label: 'HubSpot API Key', placeholder: 'Placeholder — Phase 5' },
-            ].map(({ label, placeholder }) => (
-              <div key={label}>
-                <label className="block text-xs text-fg-3 mb-1">{label}</label>
-                <input
-                  type="password"
-                  placeholder={placeholder}
-                  disabled
-                  className="w-full bg-card border border-border-soft rounded px-3 py-2 text-xs text-fg-3 placeholder:text-fg-3 opacity-50 cursor-not-allowed"
-                />
+              { label: 'Lemlist API Key', connected: lemlistOn, envKey: 'LEMLIST_API_KEY' },
+              { label: 'HubSpot API Key', connected: hubspotOn, envKey: 'HUBSPOT_API_KEY' },
+            ].map(({ label, connected, envKey }) => (
+              <div key={label} className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-fg">{label}</div>
+                  <div className="text-xs text-fg-3">{envKey}</div>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${connected ? 'bg-score-high/10 text-score-high' : 'bg-border text-fg-3'}`}>
+                  {connected ? 'Connected' : 'Not connected'}
+                </span>
               </div>
             ))}
           </div>
@@ -85,21 +92,42 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* Suppression List */}
+        <Link href="/settings/suppression"
+          className="flex items-center gap-4 p-4 bg-surface border border-border rounded-lg hover:border-accent/40 transition-all group">
+          <div className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center shrink-0 group-hover:border-accent/40 transition-colors">
+            <ShieldOff className="w-4 h-4 text-fg-2 group-hover:text-accent transition-colors" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-fg">Suppression List</div>
+            <div className="text-xs text-fg-3">Block companies from ever entering the pipeline — pre-loaded with Shikenso customers</div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-fg-3 group-hover:text-accent transition-colors" />
+        </Link>
+
+        {/* Knowledge Base */}
+        <Link href="/settings/knowledge-base"
+          className="flex items-center gap-4 p-4 bg-surface border border-border rounded-lg hover:border-accent/40 transition-all group">
+          <div className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center shrink-0 group-hover:border-accent/40 transition-colors">
+            <BookOpen className="w-4 h-4 text-fg-2 group-hover:text-accent transition-colors" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-fg">Knowledge Base</div>
+            <div className="text-xs text-fg-3">ICP segments, products, proof points, competitors, keywords, copy tone — all pulled dynamically into Claude prompts</div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-fg-3 group-hover:text-accent transition-colors" />
+        </Link>
+
         {/* Accent color */}
         <section className="bg-surface border border-border rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <Palette className="w-3.5 h-3.5 text-accent" />
             <h2 className="text-xs font-semibold text-fg">Accent Color</h2>
           </div>
-          <p className="text-xs text-fg-3 mb-3">
-            Change your Scoutly color theme at any time.
-          </p>
-          <a
-            href="/setup"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-md text-xs text-fg-2 hover:text-fg hover:border-border transition-colors"
-          >
+          <Link href="/setup"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-md text-xs text-fg-2 hover:text-fg hover:border-border transition-colors">
             Open color picker
-          </a>
+          </Link>
         </section>
       </div>
     </div>
