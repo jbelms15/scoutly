@@ -168,8 +168,7 @@ export default function AddCompanyModal({ open, onClose, onCreated, defaultTier 
                 className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-fg focus:outline-none focus:border-accent transition-colors">
                 <option value="NONE">No tier</option>
                 <option value="TIER_1">Tier 1 — Dream accounts</option>
-                <option value="TIER_2">Tier 2 — Strong fit</option>
-                <option value="TIER_3">Tier 3 — Watch list</option>
+                <option value="ACTIVE">Active — In outreach or tracked</option>
               </select>
             </div>
           </div>

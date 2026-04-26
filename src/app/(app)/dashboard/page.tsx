@@ -14,26 +14,20 @@ async function getKBStats() {
     const supabase = await createClient()
     const [
       { count: segments },
-      { count: products },
       { count: proofPoints },
-      { count: competitors },
       { count: keywords },
-      { data: lastEdit },
+      { count: voiceRules },
     ] = await Promise.all([
       supabase.from('kb_icp_segments').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_products').select('*', { count: 'exact', head: true }).eq('active', true),
       supabase.from('kb_proof_points').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_competitors').select('*', { count: 'exact', head: true }).eq('active', true),
       supabase.from('kb_signal_keywords').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_version_history').select('created_at').order('created_at', { ascending: false }).limit(1),
+      supabase.from('kb_copy_preferences').select('*', { count: 'exact', head: true }).eq('active', true),
     ])
     return {
       segments: segments ?? 0,
-      products: products ?? 0,
       proofPoints: proofPoints ?? 0,
-      competitors: competitors ?? 0,
       keywords: keywords ?? 0,
-      lastUpdated: lastEdit?.[0]?.created_at ?? null,
+      voiceRules: voiceRules ?? 0,
     }
   } catch {
     return null
@@ -102,25 +96,16 @@ export default async function DashboardPage() {
           {kb ? (
             <div className="space-y-1.5">
               {[
-                { label: 'ICP segments active',        value: kb.segments },
-                { label: 'Products',                    value: kb.products },
-                { label: 'Proof points',                value: kb.proofPoints },
-                { label: 'Competitors tracked',         value: kb.competitors },
-                { label: 'Signal keyword sets',         value: kb.keywords },
+                { label: '🎯 ICP — segments active',     value: kb.segments },
+                { label: '📦 Shikenso — proof points',   value: kb.proofPoints },
+                { label: '🔔 Signals — keyword sets',    value: kb.keywords },
+                { label: '✍️ Voice — rules',              value: kb.voiceRules },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-xs text-fg-3">{label}</span>
                   <span className="text-xs font-semibold text-fg">{value}</span>
                 </div>
               ))}
-              {kb.lastUpdated && (
-                <p className="text-xs text-fg-3 pt-2 border-t border-border-soft mt-2">
-                  Last edited {new Date(kb.lastUpdated).toLocaleDateString()}
-                </p>
-              )}
-              {!kb.lastUpdated && (
-                <p className="text-xs text-fg-3 pt-2 border-t border-border-soft mt-2">No edits recorded yet</p>
-              )}
             </div>
           ) : (
             <p className="text-xs text-fg-3">Run migration 005 to activate the Knowledge Base.</p>
