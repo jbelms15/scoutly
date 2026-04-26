@@ -1,4 +1,4 @@
-import { Settings, User, Key, Target, Palette, ShieldOff, BookOpen, ChevronRight } from 'lucide-react'
+import { Settings, User, Key, Target, Palette, ShieldOff, BookOpen, Webhook, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { isLemlistConnected } from '@/lib/lemlist'
 import { isHubSpotConnected } from '@/lib/hubspot'
@@ -91,6 +91,19 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Webhooks */}
+        <Link href="/settings/webhooks"
+          className="flex items-center gap-4 p-4 bg-surface border border-border rounded-lg hover:border-accent/40 transition-all group">
+          <div className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center shrink-0 group-hover:border-accent/40 transition-colors">
+            <Webhook className="w-4 h-4 text-fg-2 group-hover:text-accent transition-colors" />
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-fg">Webhook Integrations</div>
+            <div className="text-xs text-fg-3">Receive leads from Lemlist Watcher and other tools via webhook</div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-fg-3 group-hover:text-accent transition-colors" />
+        </Link>
 
         {/* Suppression List */}
         <Link href="/settings/suppression"
