@@ -39,7 +39,8 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isAuthRoute = pathname === '/login'
   const isSetupRoute = pathname === '/setup'
-  const isPublic = isAuthRoute || isSetupRoute
+  const isApiRoute = pathname.startsWith('/api/')
+  const isPublic = isAuthRoute || isSetupRoute || isApiRoute
 
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
