@@ -63,7 +63,7 @@ export default function ReviewPage() {
           .eq('needs_review', true)
         if (data) {
           data.forEach(row => {
-            const name = row[t.nameField] as string
+            const name = (row as Record<string, unknown>)[t.nameField] as string
             all.push({ id: row.id, table: t.name, tableLabel: t.label, name: name?.slice(0, 80) ?? row.id.slice(0, 8), source: row.source, source_notes: row.source_notes, needs_review: row.needs_review })
           })
         }
