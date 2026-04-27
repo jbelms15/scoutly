@@ -59,12 +59,13 @@ export default function ReviewPage() {
       try {
         const { data } = await supabase
           .from(t.name)
-          .select(`id, ${t.nameField}, source, source_notes, needs_review`)
+          .select('*')
           .eq('needs_review', true)
         if (data) {
           data.forEach(row => {
-            const name = (row as Record<string, unknown>)[t.nameField] as string
-            all.push({ id: row.id, table: t.name, tableLabel: t.label, name: name?.slice(0, 80) ?? row.id.slice(0, 8), source: row.source, source_notes: row.source_notes, needs_review: row.needs_review })
+            const r = row as Record<string, unknown>
+            const name = (r[t.nameField] as string | undefined)?.slice(0, 80) ?? (r.id as string).slice(0, 8)
+            all.push({ id: r.id as string, table: t.name, tableLabel: t.label, name, source: r.source as string, source_notes: r.source_notes as string | null, needs_review: r.needs_review as boolean })
           })
         }
       } catch {
