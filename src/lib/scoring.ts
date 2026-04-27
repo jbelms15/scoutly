@@ -189,7 +189,7 @@ export async function scoreLead(leadId: string, runType: 'INITIAL_SCORE' | 'RE_S
   const priority = derivePriority(icpScore, String(company?.target_tier ?? ''), disqualified)
 
   // Update lead with all scoring outputs
-  await supabase.from('leads').update({
+  const { error: updateError } = await supabase.from('leads').update({
     segment:                String(parsed.segment ?? 'Unknown'),
     segment_confidence:     String(parsed.segment_confidence ?? 'LOW'),
     fit_score:              fitScore,
@@ -211,6 +211,11 @@ export async function scoreLead(leadId: string, runType: 'INITIAL_SCORE' | 'RE_S
     enrichment_status:      'COMPLETE',
     enrichment_completed_at: new Date().toISOString(),
   }).eq('id', leadId)
+
+  if (updateError) {
+    console.error('[scoring] Lead update failed:', updateError.message)
+    return { success: false, error: `DB update failed: ${updateError.message}` }
+  }
 
   return {
     success:              true,
