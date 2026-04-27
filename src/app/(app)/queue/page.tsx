@@ -354,7 +354,7 @@ export default function QueuePage() {
       .in('status', ['PENDING', 'APPROVED', 'RESPONDED'])
       .order('created_at', { ascending: false })
       .limit(50)
-      .then(({ data }) => setAllLeads((data ?? []) as Lead[]))
+      .then(({ data }) => setAllLeads((data ?? []) as unknown as Lead[]))
   }, [showLeadPicker])
 
   const load = useCallback(async () => {
