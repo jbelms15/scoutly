@@ -342,7 +342,20 @@ export default function QueuePage() {
   const [editLead, setEditLead]         = useState<Lead | null>(null)
   const [qualifyLead, setQualifyLead]   = useState<Lead | null>(null)
   const [testReplyLead, setTestReplyLead] = useState<Lead | null>(null)
+  const [showLeadPicker, setShowLeadPicker] = useState(false)
+  const [allLeads, setAllLeads] = useState<Lead[]>([])
   const [prefillCompany, setPrefillCompany] = useState<{ id: string; name: string } | undefined>()
+
+  // Fetch all pending/approved leads for the lead picker
+  useEffect(() => {
+    if (!showLeadPicker) return
+    createClient().from('leads')
+      .select('id, first_name, last_name, companies(name)')
+      .in('status', ['PENDING', 'APPROVED', 'RESPONDED'])
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => setAllLeads((data ?? []) as Lead[]))
+  }, [showLeadPicker])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -454,10 +467,10 @@ export default function QueuePage() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads..."
               className="bg-surface border border-border text-xs text-fg placeholder:text-fg-3 rounded-md pl-8 pr-3 py-1.5 w-44 focus:outline-none focus:border-accent" />
           </div>
-          {tab === 'replies' && (
-            <button onClick={() => { const l = filtered[0]; if (l) setTestReplyLead(l) }}
+          {(tab === 'replies' || tab === 'pending') && (
+            <button onClick={() => setShowLeadPicker(true)}
               className="px-3 py-1.5 bg-surface border border-border text-xs text-fg-2 rounded-md hover:text-fg transition-colors">
-              + Add Test Reply
+              💬 Add Test Reply
             </button>
           )}
           <div className="relative">
@@ -618,6 +631,32 @@ export default function QueuePage() {
           onAdded={(sentiment) => { setTestReplyLead(null); showToast(`Reply added · Classified: ${sentiment}`); load() }}
           onClose={() => setTestReplyLead(null)}
         />
+      )}
+
+      {/* Lead picker for test reply */}
+      {showLeadPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowLeadPicker(false)} />
+          <div className="relative bg-card border border-border rounded-xl w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border-soft">
+              <h2 className="text-sm font-semibold text-fg">💬 Pick a lead to reply to</h2>
+              <button onClick={() => setShowLeadPicker(false)} className="text-fg-3 hover:text-fg text-lg leading-none">×</button>
+            </div>
+            <div className="max-h-72 overflow-y-auto py-1">
+              {allLeads.length === 0 ? (
+                <p className="text-xs text-fg-3 text-center py-6">No leads found. Add leads via CSV or Manual Entry first.</p>
+              ) : allLeads.map(l => (
+                <button key={l.id} onClick={() => { setShowLeadPicker(false); setTestReplyLead(l) }}
+                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface transition-colors text-left">
+                  <div>
+                    <p className="text-xs font-semibold text-fg">{[l.first_name, l.last_name].filter(Boolean).join(' ')}</p>
+                    <p className="text-xs text-fg-3">{(l.companies as any)?.name ?? '—'}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
