@@ -30,11 +30,11 @@ export async function GET(req: NextRequest) {
     const supabase = await createClient()
     const [{ data: segs }, { data: prods }, { data: prefs }] = await Promise.all([
       supabase.from('kb_icp_segments').select('id, segment_name').eq('active', true),
-      supabase.from('kb_products').select('id, name').eq('active', true),
+      supabase.from('kb_modules').select('id, name').eq('active', true),
       supabase.from('kb_copy_preferences').select('id').eq('active', true),
     ])
     checks.kb_segments     = segs?.length ?? 0
-    checks.kb_products     = prods?.length ?? 0
+    checks.kb_modules      = prods?.length ?? 0
     checks.kb_copy_prefs   = prefs?.length ?? 0
     checks.kb_note         = (segs?.length ?? 0) === 0 ? 'WARNING: KB tables empty — scoring prompt will have no context' : 'OK'
   } catch (e) {

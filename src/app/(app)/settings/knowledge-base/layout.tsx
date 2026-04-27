@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, Sparkles, Radio, MessageSquare } from 'lucide-react'
+import { Users, Sparkles, Radio, MessageSquare, Globe, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const KB_NAV = [
   { href: '/settings/knowledge-base/icp',      icon: Users,          label: 'ICP' },
-  { href: '/settings/knowledge-base/shikenso',  icon: Sparkles,       label: 'Shikenso' },
+  { href: '/settings/knowledge-base/modules',   icon: Sparkles,       label: 'Modules' },
+  { href: '/settings/knowledge-base/geo',       icon: Globe,          label: 'Geography' },
+  { href: '/settings/knowledge-base/playbook',  icon: BookOpen,       label: 'Playbook' },
   { href: '/settings/knowledge-base/signals',   icon: Radio,          label: 'Signals' },
   { href: '/settings/knowledge-base/voice',     icon: MessageSquare,  label: 'Voice' },
 ]

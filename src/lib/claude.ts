@@ -15,11 +15,15 @@ export type ClaudePromptResult = {
   system: string
   messages: ClaudeMessage[]
   kb_snapshot: {
-    segments: number
-    products: number
-    proof_points: number
-    competitors: number
-    copy_prefs: number
+    segments:      number
+    modules:       number
+    proof_points:  number
+    competitors:   number
+    copy_prefs:    number
+    geo_tiers:     number
+    pain_points:   number
+    objections:    number
+    framing_rules: number
   }
 }
 
@@ -28,24 +32,39 @@ export async function buildKBContext() {
 
   const [
     { data: segments },
-    { data: products },
+    { data: modules },
     { data: proofPoints },
     { data: competitors },
     { data: copyPrefs },
+    { data: geoPriorities },
+    { data: painPoints },
+    { data: objections },
+    { data: framingRules },
+    { data: convPatterns },
   ] = await Promise.all([
     supabase.from('kb_icp_segments').select('*').eq('active', true).order('sort_order'),
-    supabase.from('kb_products').select('*').eq('active', true).order('sort_order'),
+    supabase.from('kb_modules').select('*').eq('active', true).order('sort_order'),
     supabase.from('kb_proof_points').select('*').eq('active', true).order('sort_order'),
     supabase.from('kb_competitors').select('*').eq('active', true),
     supabase.from('kb_copy_preferences').select('*').eq('active', true),
+    supabase.from('kb_geographic_priorities').select('*').eq('active', true).order('sort_order'),
+    supabase.from('kb_pain_points').select('*').eq('active', true).order('sort_order'),
+    supabase.from('kb_objections').select('*').eq('active', true).order('sort_order'),
+    supabase.from('kb_framing_rules').select('*').eq('active', true).order('sort_order'),
+    supabase.from('kb_conversation_patterns').select('*').eq('active', true).order('sort_order'),
   ])
 
   return {
-    segments: segments ?? [],
-    products: products ?? [],
-    proofPoints: proofPoints ?? [],
-    competitors: competitors ?? [],
-    copyPrefs: copyPrefs ?? [],
+    segments:      segments      ?? [],
+    modules:       modules       ?? [],
+    proofPoints:   proofPoints   ?? [],
+    competitors:   competitors   ?? [],
+    copyPrefs:     copyPrefs     ?? [],
+    geoPriorities: geoPriorities ?? [],
+    painPoints:    painPoints    ?? [],
+    objections:    objections    ?? [],
+    framingRules:  framingRules  ?? [],
+    convPatterns:  convPatterns  ?? [],
   }
 }
 
@@ -56,38 +75,108 @@ function getCopyPref(copyPrefs: KBContext['copyPrefs'], type: string): string {
 }
 
 function buildSystemPrompt(kb: KBContext, task: TaskType): string {
-  const { segments, products, proofPoints, competitors, copyPrefs } = kb
+  const { segments, modules, proofPoints, competitors, copyPrefs,
+          geoPriorities, painPoints, objections, framingRules, convPatterns } = kb
   const lines: string[] = []
 
   lines.push('You are an AI prospecting assistant for Shikenso Analytics, a German AI-powered sponsorship measurement platform.')
   lines.push(`Today: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`)
   lines.push('')
 
-  lines.push('## SHIKENSO PRODUCTS')
-  for (const p of products) {
-    lines.push(`### ${p.product_name || p.name}`)
-    if (p.description) lines.push(p.description)
-    if (p.positioning_statement) lines.push(`Positioning: ${p.positioning_statement}`)
-    if (p.target_segments) lines.push(`Target: ${p.target_segments}`)
-    if (p.key_differentiators) lines.push(`Differentiators: ${p.key_differentiators}`)
-    lines.push('')
+  // ── Modules (formerly Products) ──────────────────────────────────────────────
+  if (modules.length > 0) {
+    lines.push('## SHIKENSO MODULES')
+    for (const m of modules) {
+      lines.push(`### ${m.product_name || m.name}`)
+      if (m.description) lines.push(m.description)
+      if (m.positioning_statement) lines.push(`Positioning: ${m.positioning_statement}`)
+      if (m.target_segments) lines.push(`Target: ${m.target_segments}`)
+      if (m.key_differentiators) lines.push(`Differentiators: ${m.key_differentiators}`)
+      lines.push('')
+    }
   }
 
+  // ── ICP Segments ─────────────────────────────────────────────────────────────
   lines.push('## ICP SEGMENTS')
   for (const s of segments) {
     lines.push(`### ${s.segment_name}`)
     if (s.definition) lines.push(s.definition)
+    if (s.buyer_psyche_one_liner) lines.push(`Buyer psyche: ${s.buyer_psyche_one_liner}`)
+    if (s.framing_rule) lines.push(`Framing rule: ${s.framing_rule}`)
     if (s.criteria) lines.push(`Criteria: ${s.criteria}`)
     if (s.pain_points) lines.push(`Pain points: ${s.pain_points}`)
-    if (s.target_titles) lines.push(`Target titles: ${s.target_titles}`)
+    if (s.target_titles) lines.push(`Target titles (text): ${s.target_titles}`)
+    if (s.target_title_array?.length) lines.push(`Target titles: ${s.target_title_array.join(', ')}`)
+    if (s.do_not_target_titles?.length) lines.push(`DO NOT TARGET titles: ${s.do_not_target_titles.join(', ')}`)
+    if (s.typical_deal_size) lines.push(`Typical deal size: ${s.typical_deal_size}`)
+    if (s.why_they_buy_us) lines.push(`Why they buy us: ${s.why_they_buy_us}`)
     if (s.priority_regions) lines.push(`Priority regions: ${s.priority_regions}`)
     if (s.priority_sports) lines.push(`Priority sports: ${s.priority_sports}`)
     if (s.example_companies) lines.push(`Examples: ${s.example_companies}`)
     if (s.min_company_size || s.max_company_size) lines.push(`Size: ${s.min_company_size ?? '?'}–${s.max_company_size ?? '?'} employees`)
-    if (s.recommended_product) lines.push(`Recommended product: ${s.recommended_product}`)
+    if (s.recommended_product) lines.push(`Recommended module: ${s.recommended_product}`)
     lines.push('')
   }
 
+  // ── Geographic Priorities ────────────────────────────────────────────────────
+  if (geoPriorities.length > 0) {
+    lines.push('## GEOGRAPHIC PRIORITIES')
+    for (const g of geoPriorities) {
+      lines.push(`### ${g.tier_name} — ${g.tier_label} (score multiplier: ×${g.score_multiplier})`)
+      if (g.countries?.length) lines.push(`Countries: ${g.countries.join(', ')}`)
+      if (g.regions?.length) lines.push(`Regions: ${g.regions.join(', ')}`)
+      if (g.rationale) lines.push(`Rationale: ${g.rationale}`)
+      lines.push('')
+    }
+  }
+
+  // ── Framing Rules ─────────────────────────────────────────────────────────────
+  if (framingRules.length > 0 && (task === 'SCORE_LEAD' || task === 'GENERATE_FULL_EMAIL' || task === 'GENERATE_FIRST_LINE')) {
+    lines.push('## FRAMING RULES BY SEGMENT')
+    for (const f of framingRules) {
+      lines.push(`### ${f.rule_name} (${f.target_segment})`)
+      lines.push(`Core frame: ${f.core_frame}`)
+      if (f.opening_hook) lines.push(`Opening hook: ${f.opening_hook}`)
+      if (f.value_angle) lines.push(`Value angle: ${f.value_angle}`)
+      if (f.proof_point_focus) lines.push(`Lead proof point: ${f.proof_point_focus}`)
+      lines.push('')
+    }
+  }
+
+  // ── Pain Points (for scoring and qualification tasks) ─────────────────────────
+  if (painPoints.length > 0 && (task === 'SCORE_LEAD' || task === 'SUGGEST_QUALIFICATION')) {
+    lines.push('## PAIN POINTS LIBRARY')
+    for (const p of painPoints) {
+      lines.push(`[${p.category}] ${p.pain_title}`)
+      if (p.pain_description) lines.push(`  ${p.pain_description}`)
+      if (p.our_solution) lines.push(`  Solution: ${p.our_solution}`)
+    }
+    lines.push('')
+  }
+
+  // ── Objections (for qualification tasks) ─────────────────────────────────────
+  if (objections.length > 0 && task === 'SUGGEST_QUALIFICATION') {
+    lines.push('## OBJECTION LIBRARY')
+    for (const o of objections) {
+      lines.push(`[${o.objection_category}] "${o.objection_text}"`)
+      lines.push(`  Reframe: ${o.reframe}`)
+      lines.push(`  Short response: ${o.response_short}`)
+      if (o.follow_up_question) lines.push(`  Follow-up: ${o.follow_up_question}`)
+    }
+    lines.push('')
+  }
+
+  // ── Conversation Patterns (for email generation tasks) ───────────────────────
+  if (convPatterns.length > 0 && (task === 'GENERATE_FULL_EMAIL' || task === 'GENERATE_FIRST_LINE')) {
+    const openingPattern = convPatterns.find(p => p.pattern_type === 'OPENING')
+    if (openingPattern) {
+      lines.push('## EMAIL OPENING FRAMEWORK')
+      if (openingPattern.steps?.length) lines.push(openingPattern.steps.join('\n'))
+      lines.push('')
+    }
+  }
+
+  // ── Proof Points ──────────────────────────────────────────────────────────────
   lines.push('## PROOF POINTS')
   for (const p of proofPoints) {
     const segs = p.best_segments ? ` [${p.best_segments}]` : ''
@@ -95,6 +184,7 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
   }
   lines.push('')
 
+  // ── Competitors ───────────────────────────────────────────────────────────────
   lines.push('## COMPETITOR AWARENESS')
   for (const c of competitors) {
     const name = c.competitor_name || c.name
@@ -105,22 +195,23 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     lines.push('')
   }
 
+  // ── Copy Preferences ─────────────────────────────────────────────────────────
   lines.push('## COPY PREFERENCES')
-  const tone = getCopyPref(copyPrefs, 'TONE_DESCRIPTION')
-  const use = getCopyPref(copyPrefs, 'WORDS_TO_USE')
-  const avoid = getCopyPref(copyPrefs, 'WORDS_TO_AVOID')
+  const tone    = getCopyPref(copyPrefs, 'TONE_DESCRIPTION')
+  const use     = getCopyPref(copyPrefs, 'WORDS_TO_USE')
+  const avoid   = getCopyPref(copyPrefs, 'WORDS_TO_AVOID')
   const opening = getCopyPref(copyPrefs, 'OPENING_STYLE')
-  const cta = getCopyPref(copyPrefs, 'CTA_STYLE')
+  const cta     = getCopyPref(copyPrefs, 'CTA_STYLE')
   const signoff = getCopyPref(copyPrefs, 'SIGN_OFF_FORMAT')
-  if (tone) lines.push(`Tone: ${tone}`)
-  if (use) lines.push(`Words to use: ${use}`)
-  if (avoid) lines.push(`Words to avoid: ${avoid}`)
+  if (tone)    lines.push(`Tone: ${tone}`)
+  if (use)     lines.push(`Words to use: ${use}`)
+  if (avoid)   lines.push(`Words to avoid: ${avoid}`)
   if (opening) lines.push(`Opening style: ${opening}`)
-  if (cta) lines.push(`CTA style: ${cta}`)
+  if (cta)     lines.push(`CTA style: ${cta}`)
   if (signoff) lines.push(`Sign-off: ${signoff}`)
   lines.push('')
 
-  // ─── Task-specific ─────────────────────────────────────────────────────────
+  // ─── Task-specific instructions ──────────────────────────────────────────────
 
   if (task === 'SCORE_LEAD') {
     lines.push('## YOUR TASK: SCORE THIS LEAD')
@@ -131,7 +222,17 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     lines.push('- fit_score (0-100): How well does this company/person match our ICP? (industry, size, region, title)')
     lines.push('- intent_score (0-100): How strong is the signal that they need this NOW? (source warmth, signal freshness, signal type)')
     lines.push('- reachability_score (0-100): Can we actually contact them? (LinkedIn +30, verified email +50, unverified email +20, decision-maker title +20)')
-    lines.push('- icp_score (0-100): Weighted average = (fit * 0.4) + (intent * 0.4) + (reachability * 0.2)')
+    lines.push('- icp_score (0-100): Weighted average = (fit × 0.4) + (intent × 0.4) + (reachability × 0.2)')
+    lines.push('')
+    lines.push('GEOGRAPHIC WEIGHTING: Apply the geographic multiplier from the Geo Priorities above.')
+    lines.push('  P1 countries/regions → fit_score × 1.2 (cap at 100)')
+    lines.push('  P2 countries/regions → no adjustment')
+    lines.push('  P3 countries/regions → fit_score × 0.5')
+    lines.push('')
+    lines.push('ESPORTS RULE: If the company is primarily an esports/gaming property with NO traditional sports component, cap fit_score at 60 for cold outbound (source_warmth = COLD).')
+    lines.push('')
+    lines.push('TITLE RULES: Check the lead title against the do_not_target_titles for their segment. If the title matches, set disqualified=true.')
+    lines.push('Specialist title boost: if the lead title is a primary sponsorship/partnership title (Head of Sponsorship, Sponsorship Manager, Partnership Manager, Head of Partnerships), add +10 to fit_score.')
     lines.push('')
     lines.push('PRIORITY RULES:')
     lines.push('- icp_score >= 80 → HOT')
@@ -139,6 +240,8 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     lines.push('- icp_score 40-59 → COLD')
     lines.push('- icp_score < 40 OR clearly wrong target → DISQUALIFIED')
     lines.push('- If company.target_tier is TIER_1, minimum priority is WARM (never COLD)')
+    lines.push('')
+    lines.push('FRAMING: Include the applicable framing_rule name in your score_reasoning so the SDR knows which angle to use.')
     lines.push('')
     lines.push('Return exactly this JSON:')
     lines.push('{')
@@ -149,7 +252,7 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     lines.push('  "reachability_score": 0-100,')
     lines.push('  "icp_score": 0-100,')
     lines.push('  "priority": "HOT | WARM | COLD | DISQUALIFIED",')
-    lines.push('  "score_reasoning": "2-3 sentence plain English explanation of the score",')
+    lines.push('  "score_reasoning": "2-3 sentence plain English explanation including framing rule to use",')
     lines.push('  "signal_strength": "HIGH | MEDIUM | LOW",')
     lines.push('  "signal_explanation": "Why this lead is worth contacting RIGHT NOW",')
     lines.push('  "recommended_campaign": "Which Lemlist campaign to use",')
@@ -182,15 +285,16 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
   if (task === 'GENERATE_FIRST_LINE') {
     lines.push('## YOUR TASK: WRITE A SIGNAL-AWARE OPENING LINE')
     lines.push('Write exactly one opening paragraph (max 2 sentences) that references WHY we are reaching out RIGHT NOW.')
-    lines.push('Does NOT start with "I" or "We". Sounds human, not templated.')
+    lines.push('Use the framing rule for their segment. Does NOT start with "I" or "We". Sounds human, not templated.')
     lines.push('Return only the text. No quotes, no subject line, no sign-off.')
   }
 
   if (task === 'GENERATE_FULL_EMAIL') {
     lines.push('## YOUR TASK: WRITE A COMPLETE OUTREACH EMAIL')
     lines.push('Keep total body under 150 words.')
+    lines.push('Use the Email Opening Framework above. Apply the correct framing rule for the lead''s segment.')
     lines.push('Return as JSON: { "subject": "...", "body": "...", "linkedin_variant": "..." }')
-    lines.push('Subject: concise, reference the signal. Body: opener → value prop → CTA (30-min call).')
+    lines.push('Subject: concise, reference the signal. Body: opener → value prop → CTA (20-min call).')
     lines.push('LinkedIn variant: shorter, casual, same hook, under 80 words.')
   }
 
@@ -209,7 +313,10 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
   if (task === 'SUGGEST_QUALIFICATION') {
     lines.push('## YOUR TASK: SUGGEST QUALIFICATION SIGNALS')
     lines.push('')
-    lines.push('Based on the lead, company, and latest reply, assess qualification signals. Return ONLY valid JSON.')
+    lines.push('Based on the lead, company, and latest reply, assess qualification signals using the BANT framework.')
+    lines.push('Cross-reference the Pain Points Library above to identify which pains are evident from the reply.')
+    lines.push('Cross-reference the Objection Library to flag any objections that may arise and suggest the pre-emptive response.')
+    lines.push('Return ONLY valid JSON.')
     lines.push('')
     lines.push('Return exactly this JSON:')
     lines.push('{')
@@ -218,16 +325,17 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     lines.push('  "decision_maker": true/false,')
     lines.push('  "decision_maker_notes": "why this person is/isnt the decision maker",')
     lines.push('  "pain_identified": true/false,')
-    lines.push('  "pain_notes": "specific pain signals found in reply or context",')
+    lines.push('  "pain_notes": "specific pain signals found in reply — quote the reply where possible",')
     lines.push('  "timeline_indicated": true/false,')
     lines.push('  "timeline_notes": "any timing signals from the reply",')
     lines.push('  "competitor_in_play": "competitor name if mentioned, or null",')
-    lines.push('  "competitor_notes": "context if competitor mentioned",')
-    lines.push('  "handoff_notes": "2-3 paragraph AE briefing: how this lead was surfaced, what they said, recommended angle, relevant proof points",')
+    lines.push('  "competitor_notes": "context if competitor mentioned and how to handle",')
+    lines.push('  "likely_objections": ["list of objection categories likely to arise in next call"],')
+    lines.push('  "objection_prep": "one-paragraph briefing on likely objections and suggested responses from the Objection Library",')
+    lines.push('  "handoff_notes": "3-paragraph AE briefing: (1) how surfaced and pain identified, (2) what they said verbatim, (3) recommended angle + proof point + watch-outs",')
     lines.push('  "qualification_status": "QUALIFIED|NURTURE|NOT_QUALIFIED"')
     lines.push('}')
     lines.push('')
-    lines.push('Be specific. Use actual quotes from the reply to justify your signals.')
     lines.push('QUALIFIED = clear intent + reachable decision maker. NURTURE = interest but missing signals. NOT_QUALIFIED = clear disqualifier.')
   }
 
@@ -254,11 +362,15 @@ export async function buildClaudePrompt(
     system,
     messages: [{ role: 'user', content: userMessage }],
     kb_snapshot: {
-      segments:    kb.segments.length,
-      products:    kb.products.length,
-      proof_points: kb.proofPoints.length,
-      competitors: kb.competitors.length,
-      copy_prefs:  kb.copyPrefs.length,
+      segments:      kb.segments.length,
+      modules:       kb.modules.length,
+      proof_points:  kb.proofPoints.length,
+      competitors:   kb.competitors.length,
+      copy_prefs:    kb.copyPrefs.length,
+      geo_tiers:     kb.geoPriorities.length,
+      pain_points:   kb.painPoints.length,
+      objections:    kb.objections.length,
+      framing_rules: kb.framingRules.length,
     },
   }
 }

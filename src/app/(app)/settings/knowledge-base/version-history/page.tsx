@@ -13,7 +13,7 @@ type HistoryEntry = {
 
 const TABLE_LABELS: Record<string, { label: string; color: string }> = {
   kb_icp_segments:    { label: 'ICP Segment',       color: 'bg-cold/10 text-cold' },
-  kb_products:        { label: 'Product',            color: 'bg-accent/10 text-accent' },
+  kb_modules:         { label: 'Module',             color: 'bg-accent/10 text-accent' },
   kb_proof_points:    { label: 'Proof Point',        color: 'bg-warm/10 text-warm' },
   kb_competitors:     { label: 'Competitor',         color: 'bg-score-low/10 text-score-low' },
   kb_signal_keywords: { label: 'Signal Keywords',   color: 'bg-score-high/10 text-score-high' },

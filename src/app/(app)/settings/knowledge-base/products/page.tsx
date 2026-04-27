@@ -21,7 +21,7 @@ export default function ProductsPage() {
 
   async function load() {
     const supabase = createClient()
-    const { data } = await supabase.from('kb_products').select('*').order('sort_order')
+    const { data } = await supabase.from('kb_modules').select('*').order('sort_order')
     if (data) {
       setItems(data)
       const m: Record<string, Partial<Product>> = {}
@@ -37,7 +37,7 @@ export default function ProductsPage() {
     setSaving(s => ({ ...s, [id]: true }))
     const supabase = createClient()
     const ed = editing[id]
-    await supabase.from('kb_products').update({
+    await supabase.from('kb_modules').update({
       description: ed.description, target_segments: ed.target_segments,
       key_differentiators: ed.key_differentiators, positioning_statement: ed.positioning_statement,
     }).eq('id', id)

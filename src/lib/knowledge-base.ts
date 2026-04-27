@@ -5,7 +5,7 @@ export async function getKnowledgeBaseContext() {
 
   const [segments, products, proofPoints, competitors, tone] = await Promise.all([
     supabase.from('kb_icp_segments').select('*').order('sort_order'),
-    supabase.from('kb_products').select('*').order('sort_order'),
+    supabase.from('kb_modules').select('*').order('sort_order'),
     supabase.from('kb_proof_points').select('*').eq('active', true).order('sort_order'),
     supabase.from('kb_competitors').select('*').eq('active', true),
     supabase.from('kb_copy_tone').select('*').limit(1).single(),
