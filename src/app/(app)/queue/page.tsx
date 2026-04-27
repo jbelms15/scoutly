@@ -69,31 +69,28 @@ function ScoreBar({ value, label }: { value?: number; label: string }) {
   )
 }
 
-// ─── Pending Lead Card ────────────────────────────────────────────────────────
+// ─── Pending Lead Card (horizontal 3-column layout) ──────────────────────────
 
 function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void }) {
   const router = useRouter()
   const [rescoring, setRescoring] = useState(false)
-  const [rejecting, setRejecting] = useState(false)
+  const [rejecting, setRejecting]   = useState(false)
   const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || '(No name)'
-  const priority = lead.priority ? PRIORITY_META[lead.priority] : null
-  const isScored = lead.icp_score != null
+  const priority  = lead.priority ? PRIORITY_META[lead.priority] : null
+  const isScored  = lead.icp_score != null
+
+  const leftBorder =
+    priority?.label === 'HOT'  ? 'border-l-score-low' :
+    priority?.label === 'WARM' ? 'border-l-warm'       :
+    priority?.label === 'COLD' ? 'border-l-cold'       : 'border-l-border'
 
   async function handleRescore() {
     setRescoring(true)
     try {
-      const res = await fetch(`/api/leads/${lead.id}/score`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ run_type: 'RE_SCORE' }),
-      })
+      const res  = await fetch(`/api/leads/${lead.id}/score`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_type: 'RE_SCORE' }) })
       const data = await res.json()
-      if (!res.ok || !data.success) {
-        alert(`Scoring failed: ${data.error ?? 'Unknown error'}.\n\nCheck: (1) migration 008 is run in Supabase, (2) ANTHROPIC_API_KEY is set in Vercel env vars.`)
-      }
-    } catch (e) {
-      alert(`Network error: ${e instanceof Error ? e.message : 'Could not reach server'}`)
-    }
+      if (!res.ok || !data.success) alert(`Scoring failed: ${data.error ?? 'Unknown error'}`)
+    } catch (e) { alert(`Network error: ${e instanceof Error ? e.message : 'unknown'}`) }
     setRescoring(false)
     onRefresh()
   }
@@ -105,126 +102,169 @@ function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
   }
 
   return (
-    <div className={cn('bg-surface border rounded-xl p-5 transition-colors',
-      priority?.label === 'HOT' ? 'border-score-low/30' :
-      priority?.label === 'WARM' ? 'border-warm/30' : 'border-border')}>
+    <div className={cn(
+      'flex bg-surface border border-l-4 rounded-xl overflow-hidden transition-colors hover:bg-surface/80',
+      leftBorder,
+      priority?.label === 'HOT'  ? 'border-score-low/20' :
+      priority?.label === 'WARM' ? 'border-warm/20'      : 'border-border'
+    )}>
 
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {isScored && priority ? (
-            <>
-              <span className={cn('px-2 py-0.5 rounded text-xs font-bold', priority.color)}>
-                {priority.dot} {priority.label} · {lead.icp_score}/100
-              </span>
-              {lead.segment && <span className="px-2 py-0.5 bg-accent-muted text-accent text-xs rounded">{lead.segment}</span>}
-            </>
-          ) : (
-            <span className="px-2 py-0.5 bg-border text-fg-3 text-xs rounded">⚪ Scoring pending...</span>
-          )}
-          {lead.source_warmth && lead.source_warmth !== 'UNKNOWN' && !isScored && (
-            <span className={cn('px-2 py-0.5 text-xs rounded', WARMTH_BADGE[lead.source_warmth])}>
-              Source: {lead.source_warmth}
+      {/* ── COL 1: Priority + Score (fixed width) ── */}
+      <div className={cn(
+        'w-20 shrink-0 flex flex-col items-center justify-center gap-1 py-4 border-r border-border-soft',
+        !isScored && 'opacity-50'
+      )}>
+        {isScored && priority ? (
+          <>
+            <span className="text-2xl leading-none">{priority.dot}</span>
+            <span className="text-xl font-bold text-fg leading-none">{lead.icp_score}</span>
+            <span className="text-xs text-fg-3">/100</span>
+            <span className={cn('mt-1 px-1.5 py-0.5 rounded text-xs font-bold', priority.color)}>
+              {priority.label}
             </span>
-          )}
-        </div>
-        <span className="text-xs text-fg-3 flex items-center gap-1 shrink-0">
-          <Clock className="w-3 h-3" />{timeAgo(lead.created_at)}
-        </span>
+          </>
+        ) : (
+          <>
+            <Loader2 className="w-5 h-5 text-fg-3 animate-spin" />
+            <span className="text-xs text-fg-3 text-center leading-tight">Scoring...</span>
+          </>
+        )}
       </div>
 
-      {/* Person + company */}
-      <div className="space-y-1 mb-3">
-        <p className="text-sm font-semibold text-fg">
-          {fullName}{lead.title && <span className="text-fg-2 font-normal"> · {lead.title}</span>}
-        </p>
-        {lead.companies && (
-          <p className="text-xs text-fg-2 flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5 text-fg-3 shrink-0" />
-            {lead.companies.name}{lead.companies.country && ` · ${lead.companies.country}`}
-            {lead.companies.target_tier === 'TIER_1' && <span className="ml-1 px-1 bg-accent-muted text-accent text-xs rounded">T1</span>}
-          </p>
-        )}
-        {lead.linkedin_url && (
-          <a href={lead.linkedin_url} target="_blank" rel="noopener"
-            className="text-xs text-accent hover:underline flex items-center gap-1 w-fit">
-            <Link2 className="w-3 h-3" />
-            {lead.linkedin_url.replace('https://www.linkedin.com/in/', 'linkedin.com/in/')}
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        )}
-        {lead.email && <p className="text-xs text-fg-3">📧 {lead.email}</p>}
-      </div>
-
-      {/* Signal context */}
-      {(lead.source_type || lead.source_signal || lead.signal_explanation) && (
-        <div className="border-t border-border-soft pt-3 mb-3 space-y-1">
-          <p className="text-xs text-fg-3">
-            {SOURCE_ICONS[lead.source_type ?? ''] ?? '📥'} <span className="text-fg-2">{lead.source_type?.replace(/_/g, ' ')}</span>
-            {lead.source_detail && <span> — {lead.source_detail}</span>}
-          </p>
-          {lead.signal_explanation && (
-            <p className="text-xs text-fg-3">
-              <span className={cn('font-medium', SIGNAL_DOT[lead.signal_strength ?? ''])}>
-                {lead.signal_strength && `${lead.signal_strength} signal`}
+      {/* ── COL 2: Identity + Signal + Reasoning (flexible) ── */}
+      <div className="flex-1 min-w-0 px-4 py-3 flex flex-col justify-between">
+        {/* Top: name / title / company */}
+        <div>
+          <div className="flex items-baseline gap-2 flex-wrap mb-0.5">
+            <span className="text-sm font-semibold text-fg">{fullName}</span>
+            {lead.title && <span className="text-xs text-fg-2">{lead.title}</span>}
+            <span className="text-xs text-fg-3 ml-auto flex items-center gap-1 shrink-0">
+              <Clock className="w-3 h-3" />{timeAgo(lead.created_at)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            {lead.companies && (
+              <span className="text-xs text-fg-2 flex items-center gap-1">
+                <Building2 className="w-3 h-3 text-fg-3 shrink-0" />
+                {lead.companies.name}
+                {lead.companies.country && ` · ${lead.companies.country}`}
+                {lead.companies.target_tier === 'TIER_1' && (
+                  <span className="ml-1 px-1 bg-accent-muted text-accent text-xs rounded">T1</span>
+                )}
               </span>
-              {lead.signal_strength && ' — '}{lead.signal_explanation}
+            )}
+            {lead.segment && <span className="px-1.5 py-0.5 bg-accent-muted text-accent text-xs rounded">{lead.segment}</span>}
+          </div>
+
+          {/* Contact links */}
+          <div className="flex items-center gap-3 mb-2">
+            {lead.linkedin_url && (
+              <a href={lead.linkedin_url} target="_blank" rel="noopener"
+                className="text-xs text-accent hover:underline flex items-center gap-1 w-fit">
+                <Link2 className="w-3 h-3" />linkedin
+                <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            )}
+            {lead.email && <span className="text-xs text-fg-3">📧 {lead.email}</span>}
+            {lead.source_type && (
+              <span className="text-xs text-fg-3">
+                {SOURCE_ICONS[lead.source_type] ?? '📥'} {lead.source_type.replace(/_/g, ' ')}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Signal + reasoning */}
+        <div className="space-y-1">
+          {(lead.signal_strength || lead.signal_explanation) && (
+            <p className="text-xs text-fg-3 leading-relaxed">
+              {lead.signal_strength && (
+                <span className={cn('font-semibold', SIGNAL_DOT[lead.signal_strength])}>
+                  {lead.signal_strength} signal
+                </span>
+              )}
+              {lead.signal_explanation && ` — ${lead.signal_explanation}`}
             </p>
           )}
-          {lead.source_signal && !lead.signal_explanation && (
+          {!lead.signal_explanation && lead.source_signal && (
             <p className="text-xs text-fg-3 italic">"{lead.source_signal}"</p>
           )}
-        </div>
-      )}
-
-      {/* Score reasoning */}
-      {lead.score_reasoning && (
-        <div className="border-t border-border-soft pt-3 mb-3">
-          <p className="text-xs text-fg-2 italic">🤖 "{lead.score_reasoning}"</p>
-        </div>
-      )}
-
-      {/* Score dimensions */}
-      {isScored && (
-        <div className="border-t border-border-soft pt-3 mb-3 space-y-1.5">
-          <ScoreBar value={lead.fit_score}          label="Fit" />
-          <ScoreBar value={lead.intent_score}       label="Intent" />
-          <ScoreBar value={lead.reachability_score} label="Reach" />
-        </div>
-      )}
-
-      {/* Recommendations */}
-      {(lead.recommended_product || lead.recommended_campaign) && (
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          {lead.recommended_product && (
-            <span className="px-2 py-0.5 bg-accent-muted text-accent text-xs rounded">📦 {lead.recommended_product}</span>
-          )}
-          {lead.recommended_campaign && (
-            <span className="px-2 py-0.5 bg-surface border border-border text-fg-2 text-xs rounded">🎯 {lead.recommended_campaign}</span>
+          {lead.score_reasoning && (
+            <p className="text-xs text-fg-2 italic line-clamp-2">🤖 "{lead.score_reasoning}"</p>
           )}
         </div>
-      )}
+      </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 pt-1">
-        {lead.companies && (
-          <button onClick={() => router.push(`/accounts/${lead.companies!.id}`)}
-            className="px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5" /> Account
-          </button>
-        )}
-        <button onClick={handleRescore} disabled={rescoring}
-          className="flex items-center gap-1 px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg disabled:opacity-50">
-          {rescoring ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-          {rescoring ? 'Scoring...' : 'Re-score'}
-        </button>
-        <button className="px-3 py-1.5 bg-accent text-sidebar text-xs font-semibold rounded hover:bg-accent-dim opacity-50 cursor-not-allowed" disabled>
-          Approve (Phase 6)
-        </button>
-        <button onClick={handleReject} disabled={rejecting}
-          className="ml-auto px-3 py-1.5 text-xs text-score-low hover:bg-score-low/10 rounded disabled:opacity-50">
-          {rejecting ? 'Rejecting...' : 'Reject'}
-        </button>
+      {/* ── COL 3: Scores + Recs + Actions (fixed width) ── */}
+      <div className="w-52 shrink-0 border-l border-border-soft px-4 py-3 flex flex-col justify-between">
+        {/* Score bars */}
+        <div>
+          {isScored ? (
+            <div className="space-y-1.5 mb-3">
+              {[
+                { label: 'Fit',    value: lead.fit_score },
+                { label: 'Intent', value: lead.intent_score },
+                { label: 'Reach',  value: lead.reachability_score },
+              ].map(({ label, value }) => {
+                if (value == null) return null
+                const color = value >= 80 ? 'bg-score-high' : value >= 60 ? 'bg-warm' : value >= 40 ? 'bg-cold' : 'bg-score-low'
+                return (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className="text-xs text-fg-3 w-9 shrink-0">{label}</span>
+                    <div className="flex-1 bg-border rounded-full h-1.5">
+                      <div className={cn('h-1.5 rounded-full', color)} style={{ width: `${value}%` }} />
+                    </div>
+                    <span className="text-xs font-semibold text-fg w-5 text-right">{value}</span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="h-14 flex items-center justify-center">
+              <span className="text-xs text-fg-3">Awaiting score</span>
+            </div>
+          )}
+
+          {/* Recommendations */}
+          <div className="flex flex-wrap gap-1 mb-3">
+            {lead.recommended_product && (
+              <span className="px-1.5 py-0.5 bg-accent-muted text-accent text-xs rounded">
+                {lead.recommended_product}
+              </span>
+            )}
+            {lead.recommended_campaign && (
+              <span className="px-1.5 py-0.5 bg-card border border-border text-fg-3 text-xs rounded truncate max-w-full">
+                {lead.recommended_campaign}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex gap-1">
+            {lead.companies && (
+              <button onClick={() => router.push(`/accounts/${lead.companies!.id}`)}
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg transition-colors">
+                <Building2 className="w-3 h-3" /> Account
+              </button>
+            )}
+            <button onClick={handleRescore} disabled={rescoring}
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg disabled:opacity-50 transition-colors">
+              {rescoring ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              {rescoring ? '...' : 'Re-score'}
+            </button>
+          </div>
+          <div className="flex gap-1">
+            <button className="flex-1 px-2 py-1.5 bg-accent text-sidebar text-xs font-semibold rounded hover:bg-accent-dim opacity-40 cursor-not-allowed" disabled>
+              Approve
+            </button>
+            <button onClick={handleReject} disabled={rejecting}
+              className="px-3 py-1.5 text-xs text-score-low border border-score-low/20 rounded hover:bg-score-low/10 disabled:opacity-50 transition-colors">
+              {rejecting ? '...' : 'Reject'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -452,7 +492,7 @@ export default function QueuePage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-2">
             {subTab === 'pending'
               ? filtered.map(l => <PendingCard key={l.id} lead={l} onRefresh={load} />)
               : filtered.map(l => <ResearchCard key={l.id} lead={l} onRefresh={load} onAddContact={() => setShowManual(true)} />)}
