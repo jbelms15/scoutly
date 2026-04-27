@@ -79,7 +79,7 @@ function getCopyPref(copyPrefs: KBContext['copyPrefs'], type: string): string {
 }
 
 function buildSystemPrompt(kb: KBContext, task: TaskType): string {
-  const { segments, modules, proofPoints, competitors, copyPrefs,
+  const { segments, modules, channels, proofPoints, competitors, copyPrefs,
           geoPriorities, painPoints, objections, framingRules, convPatterns } = kb
   const lines: string[] = []
 
