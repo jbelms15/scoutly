@@ -110,8 +110,10 @@ function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
           ) : (
             <span className="px-2 py-0.5 bg-border text-fg-3 text-xs rounded">⚪ Scoring pending...</span>
           )}
-          {lead.source_warmth && lead.source_warmth !== 'UNKNOWN' && (
-            <span className={cn('px-2 py-0.5 text-xs rounded', WARMTH_BADGE[lead.source_warmth])}>{lead.source_warmth}</span>
+          {lead.source_warmth && lead.source_warmth !== 'UNKNOWN' && !isScored && (
+            <span className={cn('px-2 py-0.5 text-xs rounded', WARMTH_BADGE[lead.source_warmth])}>
+              Source: {lead.source_warmth}
+            </span>
           )}
         </div>
         <span className="text-xs text-fg-3 flex items-center gap-1 shrink-0">

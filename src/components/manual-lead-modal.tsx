@@ -88,7 +88,13 @@ export default function ManualLeadModal({ open, onClose, onCreated, prefillCompa
     const data = await res.json()
     setSaving(false)
     setResult(data)
-    if (data.action === 'CREATED') onCreated()
+
+    if (data.action === 'CREATED' && data.lead_id) {
+      // Auto-trigger enrichment + scoring in the background
+      fetch(`/api/leads/${data.lead_id}/process`, { method: 'POST' })
+        .catch(() => {}) // non-blocking — queue page will show scored result on next load
+      onCreated()
+    }
   }
 
   function handleAddAnother() {
