@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { buildClaudePrompt } from '@/lib/claude'
 
-const MODEL          = 'claude-sonnet-4-20250514'
+const MODEL          = 'claude-sonnet-4-6'
 const PROMPT_VERSION = '1.0.0'
 // Claude claude-sonnet-4-20250514 pricing (per million tokens)
 const INPUT_COST_PER_M  = 3.0

@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { buildClaudePrompt } from '@/lib/claude'
 
-const MODEL = 'claude-sonnet-4-20250514'
+const MODEL = 'claude-sonnet-4-6'
 
 // ─── Person enrichment (Lemlist Find & Enrich) ───────────────────────────────
 
