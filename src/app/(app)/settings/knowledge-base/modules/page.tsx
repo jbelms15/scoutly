@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronUp, Plus, Save, Trash2, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Save, Trash2, Loader2, Radio } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import ChipInput from '@/components/chip-input'
+import KBSourceBadge from '@/components/kb-source-badge'
 import { cn } from '@/lib/utils'
 
-type Module    = { id: string; name: string; product_name: string; description: string; target_segments: string; key_differentiators: string; positioning_statement: string; active: boolean; sort_order: number }
+type Module    = { id: string; name: string; product_name: string; description: string; target_segments: string; key_differentiators: string; positioning_statement: string; active: boolean; sort_order: number; source?: string }
+type Channel   = { id: string; channel_name: string; description: string; covers_what: string; primary_competitors: string[]; differentiation_note: string; active: boolean; sort_order: number; source?: string; source_notes?: string }
 type ProofPoint = { id: string; headline: string; full_context: string; best_segments: string; case_study_company: string; active: boolean; sort_order: number }
 type Competitor = { id: string; name: string; competitor_name: string; website: string; positioning_notes: string; shikenso_differentiation: string; differentiation: string; when_likely_encountered: string; active: boolean }
 
@@ -57,7 +59,10 @@ function ModulesSection() {
         return (
           <div key={item.id} className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-soft">
-              <span className="text-xs font-semibold text-accent">{item.product_name || item.name}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-accent">{item.product_name || item.name}</span>
+                <KBSourceBadge source={item.source} />
+              </div>
               <div className="flex gap-1.5">
                 {isEditing ? (
                   <>
@@ -230,19 +235,61 @@ function CompetitorsSection() {
   )
 }
 
+// ─── Channels Section ─────────────────────────────────────────────────────────
+
+function ChannelsSection() {
+  const [items, setItems] = useState<Channel[]>([])
+
+  useEffect(() => {
+    createClient().from('kb_channels').select('*').order('sort_order').then(({ data }) => {
+      if (data) setItems(data)
+    })
+  }, [])
+
+  return (
+    <div className="p-5 space-y-3">
+      {items.map(item => (
+        <div key={item.id} className="bg-card border border-border rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Radio className="w-3.5 h-3.5 text-accent shrink-0" />
+            <span className="text-xs font-semibold text-fg">{item.channel_name}</span>
+            <KBSourceBadge source={item.source} />
+          </div>
+          <p className="text-xs text-fg-2 mb-2">{item.description}</p>
+          {item.primary_competitors?.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-fg-3">vs </span>
+              {item.primary_competitors.map(c => (
+                <span key={c} className="px-1.5 py-0.5 bg-score-low/10 text-score-low text-xs rounded">{c}</span>
+              ))}
+            </div>
+          )}
+          {item.differentiation_note && !item.primary_competitors?.length && (
+            <p className="text-xs text-score-high">{item.differentiation_note}</p>
+          )}
+        </div>
+      ))}
+      <p className="text-xs text-fg-3 italic px-1">Product-to-channel mapping is pending Benedikt confirmation. No mapping has been assumed.</p>
+    </div>
+  )
+}
+
 export default function ModulesPage() {
-  const [moduleCount, setModuleCount]     = useState(0)
-  const [proofCount, setProofCount]       = useState(0)
+  const [moduleCount, setModuleCount]       = useState(0)
+  const [channelCount, setChannelCount]     = useState(0)
+  const [proofCount, setProofCount]         = useState(0)
   const [competitorCount, setCompetitorCount] = useState(0)
 
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
       supabase.from('kb_modules').select('*', { count: 'exact', head: true }).eq('active', true),
+      supabase.from('kb_channels').select('*', { count: 'exact', head: true }).eq('active', true),
       supabase.from('kb_proof_points').select('*', { count: 'exact', head: true }).eq('active', true),
       supabase.from('kb_competitors').select('*', { count: 'exact', head: true }).eq('active', true),
-    ]).then(([m, pp, c]) => {
+    ]).then(([m, ch, pp, c]) => {
       setModuleCount(m.count ?? 0)
+      setChannelCount(ch.count ?? 0)
       setProofCount(pp.count ?? 0)
       setCompetitorCount(c.count ?? 0)
     })
@@ -252,9 +299,23 @@ export default function ModulesPage() {
     <div className="p-6 max-w-3xl space-y-4">
       <div>
         <h1 className="text-sm font-semibold text-fg">Modules</h1>
-        <p className="text-xs text-fg-3 mt-0.5">Shikenso products, proof points, and competitor positioning — all pulled into Claude prompts dynamically.</p>
+        <p className="text-xs text-fg-3 mt-0.5">Shikenso products, measurement channels, proof points, and competitor positioning — all pulled into Claude prompts dynamically.</p>
       </div>
-      <Section title="Shikenso Modules" count={moduleCount}><ModulesSection /></Section>
+
+      {/* Arwin quote callout */}
+      <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl px-5 py-4">
+        <p className="text-sm text-fg italic leading-relaxed">
+          "You go into the restaurant and have everything you want. You don't buy a drink somewhere else, your pizza here, and your pasta there."
+        </p>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-xs text-fg-3">— Arwin</span>
+          <KBSourceBadge source="ARWIN_QUOTE" />
+          <span className="text-xs text-fg-3">Benedikt deck, page 13</span>
+        </div>
+      </div>
+
+      <Section title="Shikenso Products" count={moduleCount}><ModulesSection /></Section>
+      <Section title="Channels Covered" count={channelCount}><ChannelsSection /></Section>
       <Section title="Proof Points" count={proofCount} defaultOpen={false}><ProofPointsSection /></Section>
       <Section title="Competitor Positioning" count={competitorCount} defaultOpen={false}><CompetitorsSection /></Section>
     </div>

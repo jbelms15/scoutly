@@ -17,6 +17,7 @@ export type ClaudePromptResult = {
   kb_snapshot: {
     segments:      number
     modules:       number
+    channels:      number
     proof_points:  number
     competitors:   number
     copy_prefs:    number
@@ -33,6 +34,7 @@ export async function buildKBContext() {
   const [
     { data: segments },
     { data: modules },
+    { data: channels },
     { data: proofPoints },
     { data: competitors },
     { data: copyPrefs },
@@ -44,6 +46,7 @@ export async function buildKBContext() {
   ] = await Promise.all([
     supabase.from('kb_icp_segments').select('*').eq('active', true).order('sort_order'),
     supabase.from('kb_modules').select('*').eq('active', true).order('sort_order'),
+    supabase.from('kb_channels').select('*').eq('active', true).order('sort_order'),
     supabase.from('kb_proof_points').select('*').eq('active', true).order('sort_order'),
     supabase.from('kb_competitors').select('*').eq('active', true),
     supabase.from('kb_copy_preferences').select('*').eq('active', true),
@@ -57,6 +60,7 @@ export async function buildKBContext() {
   return {
     segments:      segments      ?? [],
     modules:       modules       ?? [],
+    channels:      channels      ?? [],
     proofPoints:   proofPoints   ?? [],
     competitors:   competitors   ?? [],
     copyPrefs:     copyPrefs     ?? [],
@@ -83,15 +87,26 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
   lines.push(`Today: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`)
   lines.push('')
 
-  // ── Modules (formerly Products) ──────────────────────────────────────────────
-  if (modules.length > 0) {
-    lines.push('## SHIKENSO MODULES')
+  // ── Modules + Channels ────────────────────────────────────────────────────────
+  if (modules.length > 0 || channels.length > 0) {
+    lines.push('## SHIKENSO PRODUCTS & CHANNELS')
+    lines.push('Shikenso sells 3 products: Sports Analytics, Esports Analytics, Campaign Measurement.')
+    lines.push('Underneath these products are 6 measurement channels: Video/Broadcast, Social, Audio, On-site/LED, Print/Press, Chat.')
+    lines.push('IMPORTANT: The specific channel inclusion per product is being confirmed with the product team. Do NOT assume a channel belongs to a specific product.')
+    lines.push('')
     for (const m of modules) {
-      lines.push(`### ${m.product_name || m.name}`)
+      lines.push(`### Product: ${m.product_name || m.name}`)
       if (m.description) lines.push(m.description)
       if (m.positioning_statement) lines.push(`Positioning: ${m.positioning_statement}`)
       if (m.target_segments) lines.push(`Target: ${m.target_segments}`)
       if (m.key_differentiators) lines.push(`Differentiators: ${m.key_differentiators}`)
+      lines.push('')
+    }
+    if (channels.length > 0) {
+      lines.push('### Measurement Channels (6 total):')
+      for (const c of channels) {
+        lines.push(`- **${c.channel_name}**: ${c.description ?? ''}${c.differentiation_note ? ` (Differentiator: ${c.differentiation_note})` : ''}`)
+      }
       lines.push('')
     }
   }
@@ -364,6 +379,7 @@ export async function buildClaudePrompt(
     kb_snapshot: {
       segments:      kb.segments.length,
       modules:       kb.modules.length,
+      channels:      kb.channels.length,
       proof_points:  kb.proofPoints.length,
       competitors:   kb.competitors.length,
       copy_prefs:    kb.copyPrefs.length,

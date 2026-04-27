@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Save, History, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import ChipInput from '@/components/chip-input'
+import KBSourceBadge from '@/components/kb-source-badge'
 import { cn } from '@/lib/utils'
 
 type Segment = {
@@ -13,6 +14,7 @@ type Segment = {
   max_company_size: number | null; recommended_product: string
   framing_rule: string; buyer_psyche_one_liner: string; typical_deal_size: string
   why_they_buy_us: string; target_title_array: string[]; do_not_target_titles: string[]
+  source?: string; needs_review?: boolean
   active: boolean; version: number; sort_order: number; updated_at: string
 }
 
@@ -145,6 +147,7 @@ export default function ICPPage() {
                     {seg.framing_rule}
                   </span>
                 )}
+                <KBSourceBadge source={seg.source} />
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button onClick={() => loadHistory(seg.id)} className="text-xs text-fg-3 hover:text-fg flex items-center gap-1">

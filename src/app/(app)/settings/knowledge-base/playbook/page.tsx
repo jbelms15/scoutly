@@ -4,24 +4,27 @@ import { useState, useEffect } from 'react'
 import { Plus, Save, Trash2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import ChipInput from '@/components/chip-input'
+import KBSourceBadge from '@/components/kb-source-badge'
 import { cn } from '@/lib/utils'
 
 type PainPoint = {
   id: string; category: string; pain_title: string; pain_description: string
-  affected_segments: string[]; discovery_questions: string[]; our_solution: string; active: boolean; sort_order: number
+  affected_segments: string[]; discovery_questions: string[]; our_solution: string
+  source?: string; active: boolean; sort_order: number
 }
 type Objection = {
   id: string; objection_text: string; objection_category: string; reframe: string
   response_short: string; response_full: string; follow_up_question: string
-  affected_segments: string[]; active: boolean; sort_order: number
+  affected_segments: string[]; source?: string; active: boolean; sort_order: number
 }
 type FramingRule = {
   id: string; rule_name: string; target_segment: string; core_frame: string
-  opening_hook: string; value_angle: string; proof_point_focus: string; active: boolean
+  opening_hook: string; value_angle: string; proof_point_focus: string
+  source?: string; active: boolean
 }
 type ConvPattern = {
   id: string; pattern_name: string; pattern_type: string; description: string
-  steps: string[]; example_script: string; active: boolean; sort_order: number
+  steps: string[]; example_script: string; source?: string; active: boolean; sort_order: number
 }
 
 type Tab = 'pain' | 'objections' | 'framing' | 'patterns'
@@ -111,6 +114,7 @@ function PainPointsTab() {
             <div className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-surface/50" onClick={() => setExpanded(isOpen ? null : item.id)}>
               <span className={cn('px-1.5 py-0.5 rounded text-xs font-medium shrink-0', CATEGORY_COLOURS[item.category] ?? 'bg-border text-fg-3')}>{item.category}</span>
               <span className="text-xs font-medium text-fg flex-1 min-w-0 truncate">{item.pain_title}</span>
+              <KBSourceBadge source={item.source} className="shrink-0 hidden sm:inline-flex" />
               <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                 {!isEditing && <button onClick={() => { setEditMode(m => ({ ...m, [item.id]: true })); setExpanded(item.id) }} className="text-xs text-fg-3 hover:text-accent">Edit</button>}
                 <button onClick={() => handleDelete(item.id)} className="text-fg-3 hover:text-score-low"><Trash2 className="w-3 h-3" /></button>
@@ -218,6 +222,7 @@ function ObjectionsTab() {
             <div className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-surface/50" onClick={() => setExpanded(isOpen ? null : item.id)}>
               <span className={cn('px-1.5 py-0.5 rounded text-xs font-medium shrink-0', OBJ_CATEGORY_COLOURS[item.objection_category] ?? 'bg-border text-fg-3')}>{item.objection_category}</span>
               <span className="text-xs font-medium text-fg flex-1 min-w-0 truncate">"{item.objection_text}"</span>
+              <KBSourceBadge source={item.source} className="shrink-0 hidden sm:inline-flex" />
               <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                 {!isEditing && <button onClick={() => { setEditMode(m => ({ ...m, [item.id]: true })); setExpanded(item.id) }} className="text-xs text-fg-3 hover:text-accent">Edit</button>}
                 <button onClick={() => handleDelete(item.id)} className="text-fg-3 hover:text-score-low"><Trash2 className="w-3 h-3" /></button>
@@ -297,9 +302,10 @@ function FramingTab() {
         return (
           <div key={item.id} className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-soft">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-accent">{item.rule_name}</span>
                 <span className="px-1.5 py-0.5 bg-border text-fg-3 text-xs rounded">{item.target_segment}</span>
+                <KBSourceBadge source={item.source} />
               </div>
               <div className="flex gap-1.5">
                 {isEditing ? (
@@ -375,9 +381,10 @@ function PatternsTab() {
         return (
           <div key={item.id} className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-soft cursor-pointer" onClick={() => setExpanded(isOpen ? null : item.id)}>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={cn('px-1.5 py-0.5 rounded text-xs font-medium', PATTERN_TYPE_COLOURS[item.pattern_type] ?? 'bg-border text-fg-3')}>{item.pattern_type}</span>
                 <span className="text-xs font-semibold text-fg">{item.pattern_name}</span>
+                <KBSourceBadge source={item.source} />
               </div>
               <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                 {!isEditing && <button onClick={() => { setEditMode(m => ({ ...m, [item.id]: true })); setExpanded(item.id) }} className="text-xs text-fg-3 hover:text-accent">Edit</button>}

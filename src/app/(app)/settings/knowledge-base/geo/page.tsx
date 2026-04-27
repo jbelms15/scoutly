@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react'
 import { Save, Loader2, Globe } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import ChipInput from '@/components/chip-input'
+import KBSourceBadge from '@/components/kb-source-badge'
 import { cn } from '@/lib/utils'
 
 type GeoPriority = {
   id: string; tier_name: string; tier_label: string
   countries: string[]; regions: string[]
   score_multiplier: number; rationale: string
+  source?: string; needs_review?: boolean
   active: boolean; sort_order: number
 }
 
@@ -105,6 +107,7 @@ export default function GeoPage() {
                 </span>
                 <span className="text-sm font-semibold text-fg">{tier.tier_label}</span>
                 <span className="text-xs text-fg-3">×{tier.score_multiplier}</span>
+                <KBSourceBadge source={tier.source} />
               </div>
               <div className="flex gap-2">
                 {isEditing ? (
