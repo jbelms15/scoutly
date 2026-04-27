@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Target, Search, Upload, Plus, Link2, ChevronDown,
-  Webhook, Building2, ExternalLink, Clock,
+  Target, Search, Upload, Plus, ChevronDown, Webhook,
+  Building2, ExternalLink, Clock, RefreshCw, Loader2,
+  Link2, AlertCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import ManualLeadModal from '@/components/manual-lead-modal'
@@ -13,24 +14,36 @@ import { cn } from '@/lib/utils'
 type SubTab = 'pending' | 'needs_research'
 
 type Lead = {
-  id: string; created_at: string
+  id: string; created_at: string; status: string
   first_name?: string; last_name?: string; title?: string
   linkedin_url?: string; email?: string
   source_type?: string; source_detail?: string; source_signal?: string
-  source_warmth?: string; status: string
-  companies?: { id: string; name: string; website?: string; country?: string; segment?: string }
+  source_warmth?: string
+  // Scoring
+  icp_score?: number; fit_score?: number; intent_score?: number
+  reachability_score?: number; priority?: string
+  score_reasoning?: string; signal_strength?: string; signal_explanation?: string
+  segment?: string; recommended_campaign?: string; recommended_product?: string
+  disqualified?: boolean; scoring_completed_at?: string
+  enrichment_status?: string; enrichment_error?: string
+  companies?: { id: string; name: string; website?: string; country?: string; segment?: string; target_tier?: string }
 }
 
+// ─── Badges & helpers ────────────────────────────────────────────────────────
+
+const PRIORITY_META: Record<string, { label: string; color: string; dot: string }> = {
+  HOT:          { label: 'HOT',          color: 'bg-score-low/10 text-score-low border border-score-low/20',     dot: '🔴' },
+  WARM:         { label: 'WARM',         color: 'bg-warm/10 text-warm border border-warm/20',                   dot: '🟡' },
+  COLD:         { label: 'COLD',         color: 'bg-cold/10 text-cold border border-cold/20',                   dot: '🔵' },
+  DISQUALIFIED: { label: 'DISQUALIFIED', color: 'bg-border text-fg-3',                                          dot: '⚫' },
+}
 const WARMTH_BADGE: Record<string, string> = {
-  WARM: 'bg-warm/10 text-warm border border-warm/20',
-  COLD: 'bg-cold/10 text-cold border border-cold/20',
-  UNKNOWN: 'bg-border text-fg-3',
+  WARM: 'bg-warm/10 text-warm', COLD: 'bg-cold/10 text-cold', UNKNOWN: 'bg-border text-fg-3',
 }
-
+const SIGNAL_DOT: Record<string, string> = { HIGH: 'text-score-high', MEDIUM: 'text-warm', LOW: 'text-fg-3' }
 const SOURCE_ICONS: Record<string, string> = {
   CSV_IMPORT: '📥', MANUAL_ENTRY: '✋', LEMLIST_WATCHER: '🔗',
-  COWORK_EXPORT: '📥', SCOUTLY_AGENT: '✨',
-  GOOGLE_ALERTS: '📡', LINKEDIN_JOBS: '💼',
+  COWORK_EXPORT: '📥', SCOUTLY_AGENT: '✨', GOOGLE_ALERTS: '📡', LINKEDIN_JOBS: '💼',
 }
 
 function timeAgo(ts: string): string {
@@ -42,16 +55,240 @@ function timeAgo(ts: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
+function ScoreBar({ value, label }: { value?: number; label: string }) {
+  if (value == null) return null
+  const color = value >= 80 ? 'bg-score-high' : value >= 60 ? 'bg-warm' : value >= 40 ? 'bg-cold' : 'bg-score-low'
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="text-xs text-fg-3 w-16 shrink-0">{label}</span>
+      <div className="flex-1 bg-border rounded-full h-1.5">
+        <div className={cn('h-1.5 rounded-full transition-all', color)} style={{ width: `${value}%` }} />
+      </div>
+      <span className="text-xs font-semibold text-fg w-6 text-right">{value}</span>
+    </div>
+  )
+}
+
+// ─── Pending Lead Card ────────────────────────────────────────────────────────
+
+function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void }) {
+  const router = useRouter()
+  const [rescoring, setRescoring] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || '(No name)'
+  const priority = lead.priority ? PRIORITY_META[lead.priority] : null
+  const isScored = lead.icp_score != null
+
+  async function handleRescore() {
+    setRescoring(true)
+    await fetch(`/api/leads/${lead.id}/score`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_type: 'RE_SCORE' }) })
+    setRescoring(false)
+    onRefresh()
+  }
+
+  async function handleReject() {
+    setRejecting(true)
+    await createClient().from('leads').update({ status: 'REJECTED' }).eq('id', lead.id)
+    onRefresh()
+  }
+
+  return (
+    <div className={cn('bg-surface border rounded-xl p-5 transition-colors',
+      priority?.label === 'HOT' ? 'border-score-low/30' :
+      priority?.label === 'WARM' ? 'border-warm/30' : 'border-border')}>
+
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {isScored && priority ? (
+            <>
+              <span className={cn('px-2 py-0.5 rounded text-xs font-bold', priority.color)}>
+                {priority.dot} {priority.label} · {lead.icp_score}/100
+              </span>
+              {lead.segment && <span className="px-2 py-0.5 bg-accent-muted text-accent text-xs rounded">{lead.segment}</span>}
+            </>
+          ) : (
+            <span className="px-2 py-0.5 bg-border text-fg-3 text-xs rounded">⚪ Scoring pending...</span>
+          )}
+          {lead.source_warmth && lead.source_warmth !== 'UNKNOWN' && (
+            <span className={cn('px-2 py-0.5 text-xs rounded', WARMTH_BADGE[lead.source_warmth])}>{lead.source_warmth}</span>
+          )}
+        </div>
+        <span className="text-xs text-fg-3 flex items-center gap-1 shrink-0">
+          <Clock className="w-3 h-3" />{timeAgo(lead.created_at)}
+        </span>
+      </div>
+
+      {/* Person + company */}
+      <div className="space-y-1 mb-3">
+        <p className="text-sm font-semibold text-fg">
+          {fullName}{lead.title && <span className="text-fg-2 font-normal"> · {lead.title}</span>}
+        </p>
+        {lead.companies && (
+          <p className="text-xs text-fg-2 flex items-center gap-1">
+            <Building2 className="w-3.5 h-3.5 text-fg-3 shrink-0" />
+            {lead.companies.name}{lead.companies.country && ` · ${lead.companies.country}`}
+            {lead.companies.target_tier === 'TIER_1' && <span className="ml-1 px-1 bg-accent-muted text-accent text-xs rounded">T1</span>}
+          </p>
+        )}
+        {lead.linkedin_url && (
+          <a href={lead.linkedin_url} target="_blank" rel="noopener"
+            className="text-xs text-accent hover:underline flex items-center gap-1 w-fit">
+            <Link2 className="w-3 h-3" />
+            {lead.linkedin_url.replace('https://www.linkedin.com/in/', 'linkedin.com/in/')}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+        {lead.email && <p className="text-xs text-fg-3">📧 {lead.email}</p>}
+      </div>
+
+      {/* Signal context */}
+      {(lead.source_type || lead.source_signal || lead.signal_explanation) && (
+        <div className="border-t border-border-soft pt-3 mb-3 space-y-1">
+          <p className="text-xs text-fg-3">
+            {SOURCE_ICONS[lead.source_type ?? ''] ?? '📥'} <span className="text-fg-2">{lead.source_type?.replace(/_/g, ' ')}</span>
+            {lead.source_detail && <span> — {lead.source_detail}</span>}
+          </p>
+          {lead.signal_explanation && (
+            <p className="text-xs text-fg-3">
+              <span className={cn('font-medium', SIGNAL_DOT[lead.signal_strength ?? ''])}>
+                {lead.signal_strength && `${lead.signal_strength} signal`}
+              </span>
+              {lead.signal_strength && ' — '}{lead.signal_explanation}
+            </p>
+          )}
+          {lead.source_signal && !lead.signal_explanation && (
+            <p className="text-xs text-fg-3 italic">"{lead.source_signal}"</p>
+          )}
+        </div>
+      )}
+
+      {/* Score reasoning */}
+      {lead.score_reasoning && (
+        <div className="border-t border-border-soft pt-3 mb-3">
+          <p className="text-xs text-fg-2 italic">🤖 "{lead.score_reasoning}"</p>
+        </div>
+      )}
+
+      {/* Score dimensions */}
+      {isScored && (
+        <div className="border-t border-border-soft pt-3 mb-3 space-y-1.5">
+          <ScoreBar value={lead.fit_score}          label="Fit" />
+          <ScoreBar value={lead.intent_score}       label="Intent" />
+          <ScoreBar value={lead.reachability_score} label="Reach" />
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {(lead.recommended_product || lead.recommended_campaign) && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {lead.recommended_product && (
+            <span className="px-2 py-0.5 bg-accent-muted text-accent text-xs rounded">📦 {lead.recommended_product}</span>
+          )}
+          {lead.recommended_campaign && (
+            <span className="px-2 py-0.5 bg-surface border border-border text-fg-2 text-xs rounded">🎯 {lead.recommended_campaign}</span>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 pt-1">
+        {lead.companies && (
+          <button onClick={() => router.push(`/accounts/${lead.companies!.id}`)}
+            className="px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg flex items-center gap-1">
+            <Building2 className="w-3.5 h-3.5" /> Account
+          </button>
+        )}
+        <button onClick={handleRescore} disabled={rescoring}
+          className="flex items-center gap-1 px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg disabled:opacity-50">
+          {rescoring ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          {rescoring ? 'Scoring...' : 'Re-score'}
+        </button>
+        <button className="px-3 py-1.5 bg-accent text-sidebar text-xs font-semibold rounded hover:bg-accent-dim opacity-50 cursor-not-allowed" disabled>
+          Approve (Phase 6)
+        </button>
+        <button onClick={handleReject} disabled={rejecting}
+          className="ml-auto px-3 py-1.5 text-xs text-score-low hover:bg-score-low/10 rounded disabled:opacity-50">
+          {rejecting ? 'Rejecting...' : 'Reject'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Needs Research Card ──────────────────────────────────────────────────────
+
+function ResearchCard({ lead, onRefresh, onAddContact }: {
+  lead: Lead; onRefresh: () => void; onAddContact: () => void
+}) {
+  const [retrying, setRetrying] = useState(false)
+
+  async function handleRetry() {
+    setRetrying(true)
+    await fetch(`/api/leads/${lead.id}/process`, { method: 'POST' })
+    setRetrying(false)
+    onRefresh()
+  }
+
+  async function handleArchive() {
+    await createClient().from('leads').update({ status: 'REJECTED' }).eq('id', lead.id)
+    onRefresh()
+  }
+
+  return (
+    <div className="bg-surface border-l-4 border-l-warm border border-border rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="px-2 py-0.5 bg-warm/10 text-warm text-xs font-medium rounded">🔍 NEEDS RESEARCH</span>
+        <span className="text-xs text-fg-3 flex items-center gap-1">
+          <Clock className="w-3 h-3" />{timeAgo(lead.created_at)}
+        </span>
+      </div>
+      <div className="space-y-1 mb-3">
+        {lead.companies ? (
+          <>
+            <p className="text-sm font-semibold text-fg">{lead.companies.name}</p>
+            <p className="text-xs text-fg-2">{lead.companies.website ?? lead.companies.country ?? ''}</p>
+          </>
+        ) : <p className="text-sm font-semibold text-fg">Unknown company</p>}
+        {lead.source_signal && <p className="text-xs text-fg-3 italic">Signal: "{lead.source_signal}"</p>}
+        {lead.enrichment_error && (
+          <div className="flex items-center gap-1 text-xs text-warm mt-1">
+            <AlertCircle className="w-3 h-3" /> {lead.enrichment_error}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={onAddContact}
+          className="px-3 py-1.5 bg-accent text-sidebar text-xs font-semibold rounded hover:bg-accent-dim flex items-center gap-1">
+          <Plus className="w-3.5 h-3.5" /> Add Contact
+        </button>
+        <button onClick={handleRetry} disabled={retrying}
+          className="flex items-center gap-1 px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg disabled:opacity-50">
+          {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          Retry
+        </button>
+        <button onClick={handleArchive} className="ml-auto text-xs text-fg-3 hover:text-score-low px-2 py-1 rounded">
+          Won&apos;t pursue
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Queue Page ──────────────────────────────────────────────────────────
+
 export default function QueuePage() {
   const router = useRouter()
-  const [subTab, setSubTab] = useState<SubTab>('pending')
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [filterSource, setFilterSource] = useState('ALL')
-  const [filterWarmth, setFilterWarmth] = useState('ALL')
+  const [subTab, setSubTab]           = useState<SubTab>('pending')
+  const [leads, setLeads]             = useState<Lead[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [search, setSearch]           = useState('')
+  const [filterPriority, setFilterPriority] = useState('ALL')
+  const [filterSource, setFilterSource]     = useState('ALL')
+  const [filterWarmth, setFilterWarmth]     = useState('ALL')
+  const [filterTier1, setFilterTier1]       = useState(false)
   const [showAddMenu, setShowAddMenu] = useState(false)
-  const [showManual, setShowManual] = useState(false)
+  const [showManual, setShowManual]   = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -59,8 +296,9 @@ export default function QueuePage() {
     const statuses = subTab === 'pending' ? ['PENDING'] : ['NEEDS_RESEARCH']
     const { data } = await supabase
       .from('leads')
-      .select('*, companies(id, name, website, country, segment)')
+      .select('*, companies(id, name, website, country, segment, target_tier)')
       .in('status', statuses)
+      .order('icp_score', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(200)
     setLeads(data ?? [])
@@ -69,17 +307,24 @@ export default function QueuePage() {
 
   useEffect(() => { load() }, [load])
 
+  const counts = {
+    pending:       leads.filter(l => l.status === 'PENDING').length,
+    needs_research: leads.filter(l => l.status === 'NEEDS_RESEARCH').length,
+  }
+
   const filtered = leads.filter(l => {
     const name = `${l.first_name ?? ''} ${l.last_name ?? ''}`.toLowerCase()
     const co = (l.companies?.name ?? '').toLowerCase()
-    const matchSearch = !search || name.includes(search.toLowerCase()) || co.includes(search.toLowerCase())
-    const matchSource = filterSource === 'ALL' || l.source_type === filterSource
-    const matchWarmth = filterWarmth === 'ALL' || l.source_warmth === filterWarmth
-    return matchSearch && matchSource && matchWarmth
+    const matchSearch   = !search || name.includes(search.toLowerCase()) || co.includes(search.toLowerCase())
+    const matchPriority = filterPriority === 'ALL' || l.priority === filterPriority
+    const matchSource   = filterSource === 'ALL' || l.source_type === filterSource
+    const matchWarmth   = filterWarmth === 'ALL' || l.source_warmth === filterWarmth
+    const matchTier1    = !filterTier1 || l.companies?.target_tier === 'TIER_1'
+    return matchSearch && matchPriority && matchSource && matchWarmth && matchTier1
   })
 
-  const pendingCount = leads.filter(l => l.status === 'PENDING').length
-  const researchCount = leads.filter(l => l.status === 'NEEDS_RESEARCH').length
+  const hotCount  = leads.filter(l => l.priority === 'HOT').length
+  const warnCount = leads.filter(l => l.priority === 'WARM').length
 
   return (
     <div className="flex flex-col h-full">
@@ -88,32 +333,32 @@ export default function QueuePage() {
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-accent" />
           <h1 className="text-sm font-semibold text-fg">Review Queue</h1>
+          {hotCount > 0 && <span className="px-1.5 py-0.5 bg-score-low/10 text-score-low text-xs font-bold rounded">{hotCount} HOT</span>}
+          {warnCount > 0 && <span className="px-1.5 py-0.5 bg-warm/10 text-warm text-xs font-bold rounded">{warnCount} WARM</span>}
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-3" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads..."
-              className="bg-surface border border-border text-xs text-fg placeholder:text-fg-3 rounded-md pl-8 pr-3 py-1.5 w-48 focus:outline-none focus:border-accent transition-colors" />
+              className="bg-surface border border-border text-xs text-fg placeholder:text-fg-3 rounded-md pl-8 pr-3 py-1.5 w-44 focus:outline-none focus:border-accent" />
           </div>
-
-          {/* Add Leads dropdown */}
           <div className="relative">
             <button onClick={() => setShowAddMenu(m => !m)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-sidebar text-xs font-semibold rounded-md hover:bg-accent-dim transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-sidebar text-xs font-semibold rounded-md hover:bg-accent-dim">
               <Plus className="w-3.5 h-3.5" /> Add Leads <ChevronDown className="w-3 h-3" />
             </button>
             {showAddMenu && (
               <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-xl z-20 py-1 w-44">
                 <button onClick={() => { setShowAddMenu(false); router.push('/leads/import') }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-fg hover:bg-surface transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-fg hover:bg-surface">
                   <Upload className="w-3.5 h-3.5 text-fg-3" /> CSV Import
                 </button>
                 <button onClick={() => { setShowAddMenu(false); setShowManual(true) }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-fg hover:bg-surface transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-fg hover:bg-surface">
                   <Plus className="w-3.5 h-3.5 text-fg-3" /> Manual Entry
                 </button>
                 <button onClick={() => { setShowAddMenu(false); router.push('/settings/webhooks') }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-fg hover:bg-surface transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-fg hover:bg-surface">
                   <Webhook className="w-3.5 h-3.5 text-fg-3" /> Webhook URL
                 </button>
               </div>
@@ -122,45 +367,55 @@ export default function QueuePage() {
         </div>
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex items-center gap-1 px-6 py-2 border-b border-border-soft bg-card">
-        {[
-          { key: 'pending' as SubTab,        label: 'Pending Review',  count: pendingCount },
-          { key: 'needs_research' as SubTab, label: 'Needs Research',  count: researchCount },
-        ].map(({ key, label, count }) => (
+      {/* Sub-tabs + filters */}
+      <div className="flex items-center gap-1 px-6 py-2 border-b border-border-soft bg-card flex-wrap gap-y-2">
+        {([
+          { key: 'pending' as SubTab,        label: 'Pending Review',  count: counts.pending },
+          { key: 'needs_research' as SubTab, label: 'Needs Research',  count: counts.needs_research },
+        ] as const).map(({ key, label, count }) => (
           <button key={key} onClick={() => setSubTab(key)}
             className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors',
               subTab === key ? 'bg-accent-muted text-accent' : 'text-fg-3 hover:text-fg hover:bg-surface')}>
             {label}
-            <span className={cn('px-1.5 rounded text-xs', subTab === key ? 'bg-accent/20 text-accent' : 'bg-border text-fg-3')}>
-              {count}
-            </span>
+            <span className={cn('px-1.5 rounded text-xs', subTab === key ? 'bg-accent/20 text-accent' : 'bg-border text-fg-3')}>{count}</span>
           </button>
         ))}
 
-        {/* Filters */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+          {subTab === 'pending' && (
+            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}
+              className="bg-surface border border-border text-xs text-fg rounded px-2 py-1 focus:outline-none focus:border-accent">
+              <option value="ALL">All priority</option>
+              <option value="HOT">🔴 HOT</option>
+              <option value="WARM">🟡 WARM</option>
+              <option value="COLD">🔵 COLD</option>
+              <option value="DISQUALIFIED">⚫ Disqualified</option>
+            </select>
+          )}
           <select value={filterWarmth} onChange={e => setFilterWarmth(e.target.value)}
             className="bg-surface border border-border text-xs text-fg rounded px-2 py-1 focus:outline-none focus:border-accent">
             <option value="ALL">All warmth</option>
             <option value="WARM">Warm</option>
             <option value="COLD">Cold</option>
-            <option value="UNKNOWN">Unknown</option>
           </select>
           <select value={filterSource} onChange={e => setFilterSource(e.target.value)}
             className="bg-surface border border-border text-xs text-fg rounded px-2 py-1 focus:outline-none focus:border-accent">
             <option value="ALL">All sources</option>
             <option value="MANUAL_ENTRY">Manual</option>
             <option value="CSV_IMPORT">CSV</option>
-            <option value="COWORK_EXPORT">Cowork</option>
             <option value="LEMLIST_WATCHER">Lemlist</option>
             <option value="GOOGLE_ALERTS">Google Alerts</option>
             <option value="LINKEDIN_JOBS">LinkedIn Jobs</option>
           </select>
+          <button onClick={() => setFilterTier1(t => !t)}
+            className={cn('px-2.5 py-1 rounded text-xs font-medium transition-colors',
+              filterTier1 ? 'bg-accent-muted text-accent' : 'bg-surface border border-border text-fg-3 hover:text-fg')}>
+            Tier 1 only
+          </button>
         </div>
       </div>
 
-      {/* Lead cards */}
+      {/* Cards */}
       <div className="flex-1 overflow-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center h-32 text-xs text-fg-3">Loading...</div>
@@ -175,147 +430,24 @@ export default function QueuePage() {
             <p className="text-xs text-fg-3 max-w-xs mb-4">
               {subTab === 'pending'
                 ? 'Import leads via CSV, add manually, or configure a webhook to receive them from Lemlist.'
-                : 'Leads appear here when a company is surfaced but no specific contact has been found yet.'}
+                : 'Leads appear here when a company is surfaced but no specific contact has been found.'}
             </p>
             <button onClick={() => setShowManual(true)}
               className="px-4 py-2 bg-accent text-sidebar text-xs font-semibold rounded-md hover:bg-accent-dim">
               + Add Lead Manually
             </button>
           </div>
-        ) : subTab === 'pending' ? (
-          <div className="grid grid-cols-1 gap-3 max-w-3xl">
-            {filtered.map(lead => <PendingCard key={lead.id} lead={lead} onRefresh={load} router={router} />)}
-          </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 max-w-3xl">
-            {filtered.map(lead => <ResearchCard key={lead.id} lead={lead} onRefresh={load} onAddContact={() => setShowManual(true)} router={router} />)}
+            {subTab === 'pending'
+              ? filtered.map(l => <PendingCard key={l.id} lead={l} onRefresh={load} />)
+              : filtered.map(l => <ResearchCard key={l.id} lead={l} onRefresh={load} onAddContact={() => setShowManual(true)} />)}
           </div>
         )}
       </div>
 
-      <ManualLeadModal open={showManual} onClose={() => setShowManual(false)} onCreated={() => { setShowManual(false); load() }} />
-    </div>
-  )
-}
-
-// ─── Pending Lead Card ────────────────────────────────────────────────────────
-
-function PendingCard({ lead, onRefresh, router }: { lead: Lead; onRefresh: () => void; router: ReturnType<typeof useRouter> }) {
-  const [rejecting, setRejecting] = useState(false)
-  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || '(No name)'
-
-  async function handleReject() {
-    setRejecting(true)
-    await createClient().from('leads').update({ status: 'REJECTED' }).eq('id', lead.id)
-    onRefresh()
-  }
-
-  return (
-    <div className="bg-surface border border-border rounded-xl p-5 hover:border-border/80 transition-colors">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 bg-border text-fg-2 text-xs font-medium rounded">⚪ PENDING</span>
-          {lead.source_warmth && lead.source_warmth !== 'UNKNOWN' && (
-            <span className={cn('px-2 py-0.5 text-xs font-medium rounded', WARMTH_BADGE[lead.source_warmth])}>
-              {lead.source_warmth}
-            </span>
-          )}
-          <span className="text-xs text-fg-3 flex items-center gap-1">
-            <Clock className="w-3 h-3" />{timeAgo(lead.created_at)}
-          </span>
-        </div>
-        <span className="text-xs text-accent italic">Scoring in Phase 5</span>
-      </div>
-
-      <div className="space-y-1 mb-3">
-        <p className="text-sm font-semibold text-fg">{fullName} {lead.title && <span className="text-fg-2 font-normal">· {lead.title}</span>}</p>
-        {lead.companies && (
-          <p className="text-xs text-fg-2 flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5 text-fg-3" />
-            {lead.companies.name}
-            {lead.companies.country && ` · ${lead.companies.country}`}
-          </p>
-        )}
-        {lead.linkedin_url && (
-          <a href={lead.linkedin_url} target="_blank" rel="noopener"
-            className="text-xs text-accent hover:underline flex items-center gap-1 w-fit">
-            <Link2 className="w-3 h-3" />
-            {lead.linkedin_url.replace('https://www.linkedin.com/in/', 'linkedin.com/in/')}
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        )}
-        {lead.email && <p className="text-xs text-fg-3">📧 {lead.email}</p>}
-      </div>
-
-      {(lead.source_type || lead.source_signal) && (
-        <div className="border-t border-border-soft pt-3 mb-3">
-          <p className="text-xs text-fg-3">
-            {SOURCE_ICONS[lead.source_type ?? ''] ?? '📥'} <span className="text-fg-2">{lead.source_type?.replace('_', ' ')}</span>
-            {lead.source_detail && <span> — {lead.source_detail}</span>}
-          </p>
-          {lead.source_signal && <p className="text-xs text-fg-3 mt-0.5 italic">"{lead.source_signal}"</p>}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 pt-1">
-        {lead.companies && (
-          <button onClick={() => router.push(`/accounts/${lead.companies!.id}`)}
-            className="px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg transition-colors flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5" /> View Account
-          </button>
-        )}
-        <button className="px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg transition-colors opacity-50 cursor-not-allowed" disabled>
-          Score (Phase 5)
-        </button>
-        <button onClick={handleReject} disabled={rejecting}
-          className="ml-auto px-3 py-1.5 text-xs text-score-low hover:bg-score-low/10 rounded transition-colors disabled:opacity-50">
-          {rejecting ? 'Rejecting...' : 'Reject'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ─── Needs Research Card ──────────────────────────────────────────────────────
-
-function ResearchCard({ lead, onRefresh, onAddContact, router }: {
-  lead: Lead; onRefresh: () => void; onAddContact: () => void; router: ReturnType<typeof useRouter>
-}) {
-  return (
-    <div className="bg-surface border border-border rounded-xl p-5 border-l-4 border-l-warm">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="px-2 py-0.5 bg-warm/10 text-warm text-xs font-medium rounded">🔍 NEEDS RESEARCH</span>
-        <span className="text-xs text-fg-3 flex items-center gap-1">
-          <Clock className="w-3 h-3" />{timeAgo(lead.created_at)}
-        </span>
-      </div>
-
-      <div className="space-y-1 mb-3">
-        {lead.companies ? (
-          <>
-            <p className="text-sm font-semibold text-fg">{lead.companies.name}</p>
-            <p className="text-xs text-fg-2">{lead.companies.website ?? lead.companies.country ?? ''}</p>
-          </>
-        ) : (
-          <p className="text-sm font-semibold text-fg">Unknown company</p>
-        )}
-        {lead.source_signal && (
-          <p className="text-xs text-fg-3 italic">Signal: "{lead.source_signal}"</p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 pt-1">
-        <button onClick={onAddContact}
-          className="px-3 py-1.5 bg-accent text-sidebar text-xs font-semibold rounded hover:bg-accent-dim transition-colors flex items-center gap-1">
-          <Plus className="w-3.5 h-3.5" /> Add Contact
-        </button>
-        {lead.companies && (
-          <button onClick={() => router.push(`/accounts/${lead.companies!.id}`)}
-            className="px-3 py-1.5 bg-card border border-border text-xs text-fg-2 rounded hover:text-fg transition-colors">
-            View Account
-          </button>
-        )}
-      </div>
+      <ManualLeadModal open={showManual} onClose={() => setShowManual(false)}
+        onCreated={() => { setShowManual(false); load() }} />
     </div>
   )
 }

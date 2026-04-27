@@ -6,6 +6,7 @@ export type TaskType =
   | 'GENERATE_FULL_EMAIL'
   | 'CLASSIFY_REPLY'
   | 'RESEARCH_COMPANY'
+  | 'ENRICH_COMPANY'
 
 export type ClaudeMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -61,7 +62,6 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
   lines.push(`Today: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`)
   lines.push('')
 
-  // Products
   lines.push('## SHIKENSO PRODUCTS')
   for (const p of products) {
     lines.push(`### ${p.product_name || p.name}`)
@@ -72,11 +72,11 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     lines.push('')
   }
 
-  // ICP Segments
   lines.push('## ICP SEGMENTS')
   for (const s of segments) {
     lines.push(`### ${s.segment_name}`)
     if (s.definition) lines.push(s.definition)
+    if (s.criteria) lines.push(`Criteria: ${s.criteria}`)
     if (s.pain_points) lines.push(`Pain points: ${s.pain_points}`)
     if (s.target_titles) lines.push(`Target titles: ${s.target_titles}`)
     if (s.priority_regions) lines.push(`Priority regions: ${s.priority_regions}`)
@@ -87,15 +87,13 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     lines.push('')
   }
 
-  // Proof points
-  lines.push('## PROOF POINTS (use selectively — pick the most relevant for the segment)')
+  lines.push('## PROOF POINTS')
   for (const p of proofPoints) {
-    const segments = p.best_segments ? ` [${p.best_segments}]` : ''
-    lines.push(`- "${p.headline}"${p.full_context ? ` — ${p.full_context}` : ''}${segments}`)
+    const segs = p.best_segments ? ` [${p.best_segments}]` : ''
+    lines.push(`- "${p.headline}"${p.full_context ? ` — ${p.full_context}` : ''}${segs}`)
   }
   lines.push('')
 
-  // Competitors
   lines.push('## COMPETITOR AWARENESS')
   for (const c of competitors) {
     const name = c.competitor_name || c.name
@@ -103,11 +101,9 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
     if (c.positioning_notes) lines.push(c.positioning_notes)
     const diff = c.shikenso_differentiation || c.differentiation
     if (diff) lines.push(`Shikenso advantage: ${diff}`)
-    if (c.when_likely_encountered) lines.push(`When encountered: ${c.when_likely_encountered}`)
     lines.push('')
   }
 
-  // Copy preferences
   lines.push('## COPY PREFERENCES')
   const tone = getCopyPref(copyPrefs, 'TONE_DESCRIPTION')
   const use = getCopyPref(copyPrefs, 'WORDS_TO_USE')
@@ -123,63 +119,88 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
   if (signoff) lines.push(`Sign-off: ${signoff}`)
   lines.push('')
 
-  // Task-specific instructions
+  // ─── Task-specific ─────────────────────────────────────────────────────────
+
   if (task === 'SCORE_LEAD') {
     lines.push('## YOUR TASK: SCORE THIS LEAD')
-    lines.push('Analyze the lead and return a JSON object. No prose before or after the JSON.')
     lines.push('')
-    lines.push('Return exactly:')
+    lines.push('Analyse the lead and company data. Return ONLY valid JSON — no prose, no markdown, no code fences.')
+    lines.push('')
+    lines.push('SCORING DIMENSIONS:')
+    lines.push('- fit_score (0-100): How well does this company/person match our ICP? (industry, size, region, title)')
+    lines.push('- intent_score (0-100): How strong is the signal that they need this NOW? (source warmth, signal freshness, signal type)')
+    lines.push('- reachability_score (0-100): Can we actually contact them? (LinkedIn +30, verified email +50, unverified email +20, decision-maker title +20)')
+    lines.push('- icp_score (0-100): Weighted average = (fit * 0.4) + (intent * 0.4) + (reachability * 0.2)')
+    lines.push('')
+    lines.push('PRIORITY RULES:')
+    lines.push('- icp_score >= 80 → HOT')
+    lines.push('- icp_score 60-79 → WARM')
+    lines.push('- icp_score 40-59 → COLD')
+    lines.push('- icp_score < 40 OR clearly wrong target → DISQUALIFIED')
+    lines.push('- If company.target_tier is TIER_1, minimum priority is WARM (never COLD)')
+    lines.push('')
+    lines.push('Return exactly this JSON:')
     lines.push('{')
-    lines.push('  "segment": "Rights Holder | Brand | Agency | Club | Unknown",')
+    lines.push('  "segment": "Rights Holder | Brand | Agency | Club & Team | Unknown",')
+    lines.push('  "segment_confidence": "HIGH | MEDIUM | LOW",')
+    lines.push('  "fit_score": 0-100,')
+    lines.push('  "intent_score": 0-100,')
+    lines.push('  "reachability_score": 0-100,')
     lines.push('  "icp_score": 0-100,')
+    lines.push('  "priority": "HOT | WARM | COLD | DISQUALIFIED",')
     lines.push('  "score_reasoning": "2-3 sentence plain English explanation of the score",')
     lines.push('  "signal_strength": "HIGH | MEDIUM | LOW",')
-    lines.push('  "signal_explanation": "why this lead is relevant RIGHT NOW based on the signal",')
-    lines.push('  "recommended_campaign": "Lemlist campaign name to use",')
+    lines.push('  "signal_explanation": "Why this lead is worth contacting RIGHT NOW",')
+    lines.push('  "recommended_campaign": "Which Lemlist campaign to use",')
     lines.push('  "recommended_product": "Sports | Esports | Campaign",')
-    lines.push('  "priority": "HOT | WARM | COLD",')
-    lines.push('  "disqualify": false,')
-    lines.push('  "disqualify_reason": ""')
+    lines.push('  "disqualified": false,')
+    lines.push('  "disqualification_reason": ""')
+    lines.push('}')
+  }
+
+  if (task === 'ENRICH_COMPANY') {
+    lines.push('## YOUR TASK: ENRICH THIS COMPANY')
+    lines.push('')
+    lines.push('Analyse the company name and website content. Return ONLY valid JSON.')
+    lines.push('')
+    lines.push('Return exactly this JSON:')
+    lines.push('{')
+    lines.push('  "description": "2-sentence company description",')
+    lines.push('  "industry": "Industry classification",')
+    lines.push('  "size_range": "1-10 | 11-50 | 51-200 | 201-500 | 501-1000 | 1000+",')
+    lines.push('  "country": "Country name",')
+    lines.push('  "region": "Europe | DACH | UK | BENELUX | etc.",')
+    lines.push('  "sponsorship_activity": "YES | LIKELY | UNCLEAR | NO",')
+    lines.push('  "sponsorship_evidence": "Direct quote or evidence from website showing sponsorship activity, or null",')
+    lines.push('  "segment": "Rights Holder | Brand | Agency | Club & Team | Unknown"')
     lines.push('}')
     lines.push('')
-    lines.push('HOT priority: Tier 1 account signal, active sponsorships, hiring for partnerships, just announced a deal.')
-    lines.push('HIGH score (80+): Active sponsorships, European base, 50+ employees, sports/esports industry.')
-    lines.push('LOW score (<50): No visible sponsorship, B2C only, <10 employees, outside sports/esports entirely.')
+    lines.push('Base your answer ONLY on the website content provided. If information is not available, use null or Unknown.')
   }
 
   if (task === 'GENERATE_FIRST_LINE') {
     lines.push('## YOUR TASK: WRITE A SIGNAL-AWARE OPENING LINE')
-    lines.push('Write exactly one opening paragraph (max 2 sentences) that:')
-    lines.push('- References WHY we are reaching out RIGHT NOW using the signal context provided')
-    lines.push('- Does NOT start with "I" or "We"')
-    lines.push('- Sounds human, not templated')
-    lines.push('- Proves you know the company and the industry')
+    lines.push('Write exactly one opening paragraph (max 2 sentences) that references WHY we are reaching out RIGHT NOW.')
+    lines.push('Does NOT start with "I" or "We". Sounds human, not templated.')
     lines.push('Return only the text. No quotes, no subject line, no sign-off.')
   }
 
   if (task === 'GENERATE_FULL_EMAIL') {
     lines.push('## YOUR TASK: WRITE A COMPLETE OUTREACH EMAIL')
-    lines.push('Write a full cold email. Keep total body under 150 words.')
-    lines.push('Return as JSON:')
-    lines.push('{ "subject": "...", "body": "...", "linkedin_variant": "..." }')
-    lines.push('')
-    lines.push('Subject: concise, reference the signal, no clickbait.')
-    lines.push('Body: signal-aware opener → value prop (segment-specific, pick 1-2 proof points) → CTA (30-min call, this week/next week).')
-    lines.push('LinkedIn variant: shorter, more casual, same hook, under 80 words.')
+    lines.push('Keep total body under 150 words.')
+    lines.push('Return as JSON: { "subject": "...", "body": "...", "linkedin_variant": "..." }')
+    lines.push('Subject: concise, reference the signal. Body: opener → value prop → CTA (30-min call).')
+    lines.push('LinkedIn variant: shorter, casual, same hook, under 80 words.')
   }
 
   if (task === 'CLASSIFY_REPLY') {
     lines.push('## YOUR TASK: CLASSIFY THIS EMAIL REPLY')
-    lines.push('Classify as one of: POSITIVE_INTEREST | OBJECTION_PRICE | OBJECTION_TIMING | OBJECTION_NOT_RELEVANT | MEETING_BOOKED | UNSUBSCRIBE | OUT_OF_OFFICE | OTHER')
+    lines.push('Classify as: POSITIVE_INTEREST | OBJECTION_PRICE | OBJECTION_TIMING | OBJECTION_NOT_RELEVANT | MEETING_BOOKED | UNSUBSCRIBE | OUT_OF_OFFICE | OTHER')
     lines.push('Return JSON: { "classification": "...", "reasoning": "1 sentence", "suggested_response": "..." }')
   }
 
   if (task === 'RESEARCH_COMPANY') {
     lines.push('## YOUR TASK: RESEARCH AND ASSESS THIS COMPANY')
-    lines.push('Based on the company information provided, assess:')
-    lines.push('1. Do they have active sports/esports sponsorships? (YES/LIKELY/UNCLEAR/NO)')
-    lines.push('2. Which ICP segment do they fit?')
-    lines.push('3. Signal strength for Shikenso outreach (HIGH/MEDIUM/LOW)')
     lines.push('Return JSON: { "sponsorship_activity": "...", "segment": "...", "signal_strength": "...", "reasoning": "2-3 sentences" }')
   }
 
@@ -195,17 +216,17 @@ export async function buildClaudePrompt(
 
   const userMessage = context
     ? `Here is the context for this task:\n\n${JSON.stringify(context, null, 2)}`
-    : 'No additional context provided — use general Shikenso knowledge base only.'
+    : 'No additional context provided.'
 
   return {
     system,
     messages: [{ role: 'user', content: userMessage }],
     kb_snapshot: {
-      segments: kb.segments.length,
-      products: kb.products.length,
+      segments:    kb.segments.length,
+      products:    kb.products.length,
       proof_points: kb.proofPoints.length,
       competitors: kb.competitors.length,
-      copy_prefs: kb.copyPrefs.length,
+      copy_prefs:  kb.copyPrefs.length,
     },
   }
 }
