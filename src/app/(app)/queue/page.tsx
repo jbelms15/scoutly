@@ -111,7 +111,7 @@ function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
 
       {/* ── COL 1: Priority + Score (fixed width) ── */}
       <div className={cn(
-        'w-20 shrink-0 flex flex-col items-center justify-center gap-1 py-4 border-r border-border-soft',
+        'w-28 shrink-0 flex flex-col items-center justify-center gap-1 py-4 border-r border-border-soft',
         !isScored && 'opacity-50'
       )}>
         {isScored && priority ? (
@@ -196,7 +196,7 @@ function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
       </div>
 
       {/* ── COL 3: Scores + Recs + Actions (fixed width) ── */}
-      <div className="w-52 shrink-0 border-l border-border-soft px-4 py-3 flex flex-col justify-between">
+      <div className="w-72 shrink-0 border-l border-border-soft px-4 py-3 flex flex-col justify-between">
         {/* Score bars */}
         <div>
           {isScored ? (
@@ -233,7 +233,7 @@ function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
               </span>
             )}
             {lead.recommended_campaign && (
-              <span className="px-1.5 py-0.5 bg-card border border-border text-fg-3 text-xs rounded truncate max-w-full">
+              <span className="px-1.5 py-0.5 bg-card border border-border text-fg-3 text-xs rounded">
                 {lead.recommended_campaign}
               </span>
             )}
