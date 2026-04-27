@@ -81,7 +81,19 @@ function PendingCard({ lead, onRefresh }: { lead: Lead; onRefresh: () => void })
 
   async function handleRescore() {
     setRescoring(true)
-    await fetch(`/api/leads/${lead.id}/score`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_type: 'RE_SCORE' }) })
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_type: 'RE_SCORE' }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        alert(`Scoring failed: ${data.error ?? 'Unknown error'}.\n\nCheck: (1) migration 008 is run in Supabase, (2) ANTHROPIC_API_KEY is set in Vercel env vars.`)
+      }
+    } catch (e) {
+      alert(`Network error: ${e instanceof Error ? e.message : 'Could not reach server'}`)
+    }
     setRescoring(false)
     onRefresh()
   }
@@ -440,7 +452,7 @@ export default function QueuePage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 max-w-3xl">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             {subTab === 'pending'
               ? filtered.map(l => <PendingCard key={l.id} lead={l} onRefresh={load} />)
               : filtered.map(l => <ResearchCard key={l.id} lead={l} onRefresh={load} onAddContact={() => setShowManual(true)} />)}
