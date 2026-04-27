@@ -7,6 +7,7 @@ export type TaskType =
   | 'CLASSIFY_REPLY'
   | 'RESEARCH_COMPANY'
   | 'ENRICH_COMPANY'
+  | 'SUGGEST_QUALIFICATION'
 
 export type ClaudeMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -195,8 +196,39 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
 
   if (task === 'CLASSIFY_REPLY') {
     lines.push('## YOUR TASK: CLASSIFY THIS EMAIL REPLY')
-    lines.push('Classify as: POSITIVE_INTEREST | OBJECTION_PRICE | OBJECTION_TIMING | OBJECTION_NOT_RELEVANT | MEETING_BOOKED | UNSUBSCRIBE | OUT_OF_OFFICE | OTHER')
-    lines.push('Return JSON: { "classification": "...", "reasoning": "1 sentence", "suggested_response": "..." }')
+    lines.push('Classify as one of:')
+    lines.push('INTERESTED — wants to learn more, book a call, has questions')
+    lines.push('NOT_NOW — interested but timing wrong, asks to follow up later')
+    lines.push('NOT_FIT — clearly not a fit (wrong company, role, etc.)')
+    lines.push('OOO — out of office auto-reply')
+    lines.push('UNSUBSCRIBE — opt out, do not contact')
+    lines.push('NEUTRAL — ambiguous, low signal')
+    lines.push('Return ONLY JSON: { "sentiment": "...", "confidence": "HIGH|MEDIUM|LOW", "brief_reasoning": "1 sentence" }')
+  }
+
+  if (task === 'SUGGEST_QUALIFICATION') {
+    lines.push('## YOUR TASK: SUGGEST QUALIFICATION SIGNALS')
+    lines.push('')
+    lines.push('Based on the lead, company, and latest reply, assess qualification signals. Return ONLY valid JSON.')
+    lines.push('')
+    lines.push('Return exactly this JSON:')
+    lines.push('{')
+    lines.push('  "budget_signal": true/false,')
+    lines.push('  "budget_notes": "evidence or lack of evidence for budget",')
+    lines.push('  "decision_maker": true/false,')
+    lines.push('  "decision_maker_notes": "why this person is/isnt the decision maker",')
+    lines.push('  "pain_identified": true/false,')
+    lines.push('  "pain_notes": "specific pain signals found in reply or context",')
+    lines.push('  "timeline_indicated": true/false,')
+    lines.push('  "timeline_notes": "any timing signals from the reply",')
+    lines.push('  "competitor_in_play": "competitor name if mentioned, or null",')
+    lines.push('  "competitor_notes": "context if competitor mentioned",')
+    lines.push('  "handoff_notes": "2-3 paragraph AE briefing: how this lead was surfaced, what they said, recommended angle, relevant proof points",')
+    lines.push('  "qualification_status": "QUALIFIED|NURTURE|NOT_QUALIFIED"')
+    lines.push('}')
+    lines.push('')
+    lines.push('Be specific. Use actual quotes from the reply to justify your signals.')
+    lines.push('QUALIFIED = clear intent + reachable decision maker. NURTURE = interest but missing signals. NOT_QUALIFIED = clear disqualifier.')
   }
 
   if (task === 'RESEARCH_COMPANY') {
