@@ -292,7 +292,7 @@ function buildSystemPrompt(kb: KBContext, task: TaskType): string {
   if (task === 'GENERATE_FULL_EMAIL') {
     lines.push('## YOUR TASK: WRITE A COMPLETE OUTREACH EMAIL')
     lines.push('Keep total body under 150 words.')
-    lines.push('Use the Email Opening Framework above. Apply the correct framing rule for the lead''s segment.')
+    lines.push("Use the Email Opening Framework above. Apply the correct framing rule for the lead's segment.")
     lines.push('Return as JSON: { "subject": "...", "body": "...", "linkedin_variant": "..." }')
     lines.push('Subject: concise, reference the signal. Body: opener → value prop → CTA (20-min call).')
     lines.push('LinkedIn variant: shorter, casual, same hook, under 80 words.')
