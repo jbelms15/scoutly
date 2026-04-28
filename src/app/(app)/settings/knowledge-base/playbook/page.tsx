@@ -67,7 +67,7 @@ function PainPointsTab() {
   const [newItem, setNewItem]   = useState({ category: '', pain_title: '', pain_description: '', our_solution: '' })
 
   async function load() {
-    const { data } = await createClient().from('kb_pain_points').select('*').order('sort_order')
+    const { data } = await createClient().from('kb_pain_points').select('*').eq('archived', false).order('sort_order')
     if (data) { setItems(data); const m: Record<string, Partial<PainPoint>> = {}; data.forEach(i => { m[i.id] = { ...i } }); setEditing(m) }
   }
   useEffect(() => { load() }, [])
@@ -169,7 +169,7 @@ function ObjectionsTab() {
   const [newItem, setNewItem]   = useState({ objection_text: '', objection_category: 'NEED', reframe: '', response_short: '', response_full: '', follow_up_question: '' })
 
   async function load() {
-    const { data } = await createClient().from('kb_objections').select('*').order('sort_order')
+    const { data } = await createClient().from('kb_objections').select('*').eq('archived', false).order('sort_order')
     if (data) { setItems(data); const m: Record<string, Partial<Objection>> = {}; data.forEach(i => { m[i.id] = { ...i } }); setEditing(m) }
   }
   useEffect(() => { load() }, [])
@@ -279,7 +279,7 @@ function FramingTab() {
   const [saving, setSaving]   = useState<Record<string, boolean>>({})
 
   async function load() {
-    const { data } = await createClient().from('kb_framing_rules').select('*').order('sort_order')
+    const { data } = await createClient().from('kb_framing_rules').select('*').eq('archived', false).order('sort_order')
     if (data) { setItems(data); const m: Record<string, Partial<FramingRule>> = {}; data.forEach(i => { m[i.id] = { ...i } }); setEditing(m) }
   }
   useEffect(() => { load() }, [])
@@ -350,7 +350,7 @@ function PatternsTab() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   async function load() {
-    const { data } = await createClient().from('kb_conversation_patterns').select('*').order('sort_order')
+    const { data } = await createClient().from('kb_conversation_patterns').select('*').eq('archived', false).order('sort_order')
     if (data) { setItems(data); const m: Record<string, Partial<ConvPattern>> = {}; data.forEach(i => { m[i.id] = { ...i } }); setEditing(m) }
   }
   useEffect(() => { load() }, [])
@@ -437,10 +437,10 @@ export default function PlaybookPage() {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('kb_pain_points').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_objections').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_framing_rules').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_conversation_patterns').select('*', { count: 'exact', head: true }).eq('active', true),
+      supabase.from('kb_pain_points').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_objections').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_framing_rules').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_conversation_patterns').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
     ]).then(([p, o, f, c]) => setCounts({ pain: p.count ?? 0, objections: o.count ?? 0, framing: f.count ?? 0, patterns: c.count ?? 0 }))
   }, [])
 

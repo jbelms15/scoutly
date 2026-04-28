@@ -35,7 +35,7 @@ function ModulesSection() {
   const [saving, setSaving]   = useState<Record<string, boolean>>({})
 
   async function load() {
-    const { data } = await createClient().from('kb_modules').select('*').order('sort_order')
+    const { data } = await createClient().from('kb_modules').select('*').eq('archived', false).order('sort_order')
     if (data) { setItems(data); const m: Record<string, Partial<Module>> = {}; data.forEach(i => { m[i.id] = { ...i } }); setEditing(m) }
   }
   useEffect(() => { load() }, [])
@@ -105,7 +105,7 @@ function ProofPointsSection() {
   const [newItem, setNewItem] = useState({ headline: '', full_context: '', best_segments: '', case_study_company: '' })
 
   async function load() {
-    const { data } = await createClient().from('kb_proof_points').select('*').order('sort_order')
+    const { data } = await createClient().from('kb_proof_points').select('*').eq('archived', false).order('sort_order')
     if (data) { setItems(data); const m: Record<string, Partial<ProofPoint>> = {}; data.forEach(i => { m[i.id] = { ...i } }); setEditing(m) }
   }
   useEffect(() => { load() }, [])
@@ -167,7 +167,7 @@ function CompetitorsSection() {
   const [newItem, setNewItem] = useState({ competitor_name: '', website: '', positioning_notes: '', shikenso_differentiation: '', when_likely_encountered: '' })
 
   async function load() {
-    const { data } = await createClient().from('kb_competitors').select('*').order('name')
+    const { data } = await createClient().from('kb_competitors').select('*').eq('archived', false).order('name')
     if (data) { setItems(data); const m: Record<string, Partial<Competitor>> = {}; data.forEach(i => { m[i.id] = { ...i } }); setEditing(m) }
   }
   useEffect(() => { load() }, [])
@@ -241,7 +241,7 @@ function ChannelsSection() {
   const [items, setItems] = useState<Channel[]>([])
 
   useEffect(() => {
-    createClient().from('kb_channels').select('*').order('sort_order').then(({ data }) => {
+    createClient().from('kb_channels').select('*').eq('archived', false).order('sort_order').then(({ data }) => {
       if (data) setItems(data)
     })
   }, [])
@@ -283,10 +283,10 @@ export default function ModulesPage() {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('kb_modules').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_channels').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_proof_points').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_competitors').select('*', { count: 'exact', head: true }).eq('active', true),
+      supabase.from('kb_modules').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_channels').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_proof_points').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_competitors').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
     ]).then(([m, ch, pp, c]) => {
       setModuleCount(m.count ?? 0)
       setChannelCount(ch.count ?? 0)

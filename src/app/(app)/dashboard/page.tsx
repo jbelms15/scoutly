@@ -33,17 +33,17 @@ async function getDashboardData() {
       { count: pendingTotal },
       { count: hotLeads },
     ] = await Promise.all([
-      supabase.from('kb_icp_segments').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_proof_points').select('*', { count: 'exact', head: true }).eq('active', true),
+      supabase.from('kb_icp_segments').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_proof_points').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
       supabase.from('kb_signal_keywords').select('*', { count: 'exact', head: true }).eq('active', true),
       supabase.from('kb_copy_preferences').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_geographic_priorities').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_modules').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_channels').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_pain_points').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_objections').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_framing_rules').select('*', { count: 'exact', head: true }).eq('active', true),
-      supabase.from('kb_conversation_patterns').select('*', { count: 'exact', head: true }).eq('active', true),
+      supabase.from('kb_geographic_priorities').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_modules').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_channels').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_pain_points').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_objections').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_framing_rules').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
+      supabase.from('kb_conversation_patterns').select('*', { count: 'exact', head: true }).eq('active', true).eq('archived', false),
       supabase.from('scoring_runs').select('api_cost_usd, lead_id').gte('created_at', startOfMonth.toISOString()),
       supabase.from('leads').select('*', { count: 'exact', head: true }).gte('created_at', startOfWeek.toISOString()),
       supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'APPROVED').gte('created_at', startOfWeek.toISOString()),
@@ -59,7 +59,7 @@ async function getDashboardData() {
       'kb_framing_rules','kb_conversation_patterns','kb_copy_preferences',
     ]
     const reviewCounts = await Promise.all(
-      needsReviewTables.map(t => supabase.from(t).select('*', { count: 'exact', head: true }).eq('needs_review', true))
+      needsReviewTables.map(t => supabase.from(t).select('*', { count: 'exact', head: true }).eq('needs_review', true).eq('archived', false))
     )
     const totalNeedsReview = reviewCounts.reduce((sum, r) => sum + (r.count ?? 0), 0)
     const reviewByTable = needsReviewTables.map((t, i) => ({ table: t, count: reviewCounts[i].count ?? 0 }))

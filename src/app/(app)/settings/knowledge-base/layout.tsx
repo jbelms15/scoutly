@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, Sparkles, Radio, MessageSquare, Globe, BookOpen, AlertTriangle } from 'lucide-react'
+import { Users, Sparkles, Radio, MessageSquare, Globe, BookOpen, AlertTriangle, Archive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const KB_NAV = [
@@ -13,6 +13,7 @@ const KB_NAV = [
   { href: '/settings/knowledge-base/signals',   icon: Radio,          label: 'Signals' },
   { href: '/settings/knowledge-base/voice',     icon: MessageSquare,  label: 'Voice' },
   { href: '/settings/knowledge-base/review',    icon: AlertTriangle,  label: 'Needs Review', warn: true },
+  { href: '/settings/knowledge-base/archive',   icon: Archive,        label: 'Archive',       muted: true },
 ]
 
 export default function KBLayout({ children }: { children: React.ReactNode }) {
@@ -22,31 +23,23 @@ export default function KBLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-full">
       <nav className="w-44 shrink-0 border-r border-border-soft py-4 px-2 space-y-0.5">
         <p className="px-3 text-xs font-semibold text-fg-3 uppercase tracking-wider mb-2">Knowledge Base</p>
-        {KB_NAV.map(({ href, icon: Icon, label, warn }) => {
+        {KB_NAV.map(({ href, icon: Icon, label, warn, muted }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
-            <Link
-              key={href}
-              href={href}
+            <Link key={href} href={href}
               className={cn(
                 'flex items-center gap-2.5 px-3 py-1.5 rounded text-xs font-medium transition-colors',
                 active
-                  ? warn ? 'bg-warm/10 text-warm' : 'bg-accent-muted text-accent'
-                  : warn ? 'text-warm hover:bg-warm/10' : 'text-fg-2 hover:text-fg hover:bg-surface'
-              )}
-            >
-              <Icon
-                className={cn('w-3.5 h-3.5 shrink-0', active ? (warn ? 'text-warm' : 'text-accent') : warn ? 'text-warm' : '')}
-                strokeWidth={active ? 2.5 : 2}
-              />
+                  ? warn ? 'bg-warm/10 text-warm' : muted ? 'bg-surface text-fg-3' : 'bg-accent-muted text-accent'
+                  : warn ? 'text-warm hover:bg-warm/10' : muted ? 'text-fg-3 hover:bg-surface' : 'text-fg-2 hover:text-fg hover:bg-surface'
+              )}>
+              <Icon className={cn('w-3.5 h-3.5 shrink-0', active ? (warn ? 'text-warm' : muted ? 'text-fg-3' : 'text-accent') : warn ? 'text-warm' : muted ? 'text-fg-3' : '')} strokeWidth={active ? 2.5 : 2} />
               {label}
             </Link>
           )
         })}
       </nav>
-      <div className="flex-1 overflow-auto">
-        {children}
-      </div>
+      <div className="flex-1 overflow-auto">{children}</div>
     </div>
   )
 }

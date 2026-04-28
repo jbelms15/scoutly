@@ -61,6 +61,7 @@ export default function ReviewPage() {
           .from(t.name)
           .select('*')
           .eq('needs_review', true)
+          .eq('archived', false)
         if (data) {
           data.forEach(row => {
             const r = row as Record<string, unknown>

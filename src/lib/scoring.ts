@@ -167,8 +167,8 @@ export async function scoreLead(
 
   // Load KB data for post-processing
   const [{ data: segments }, { data: geoPriorities }] = await Promise.all([
-    supabase.from('kb_icp_segments').select('segment_name, do_not_target_titles, target_title_array').eq('active', true),
-    supabase.from('kb_geographic_priorities').select('tier_name, countries, regions, score_multiplier').eq('active', true).order('sort_order'),
+    supabase.from('kb_icp_segments').select('segment_name, do_not_target_titles, target_title_array, default_first_touch_titles, specialist_titles').eq('active', true).eq('archived', false),
+    supabase.from('kb_geographic_priorities').select('tier_name, countries, regions, score_multiplier').eq('active', true).eq('archived', false).order('sort_order'),
   ])
 
   const freshness = computeSignalFreshness(lead.source_imported_at)

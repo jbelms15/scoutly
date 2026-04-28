@@ -30,7 +30,7 @@ export default function GeoPage() {
   const [loading, setLoading] = useState(true)
 
   async function load() {
-    const { data } = await createClient().from('kb_geographic_priorities').select('*').order('sort_order')
+    const { data } = await createClient().from('kb_geographic_priorities').select('*').eq('archived', false).order('sort_order')
     if (data) {
       setTiers(data)
       const m: Record<string, Partial<GeoPriority>> = {}

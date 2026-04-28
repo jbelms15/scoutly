@@ -25,6 +25,8 @@ export function useKBSegments() {
     supabase
       .from('kb_icp_segments')
       .select('segment_name, definition, sort_order')
+      .eq('active', true)
+      .eq('archived', false)
       .order('sort_order')
       .then(({ data }) => {
         if (data && data.length > 0) setSegments(data)
