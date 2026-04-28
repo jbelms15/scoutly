@@ -306,7 +306,7 @@ export default function ICPPage() {
 
                 {(seg.recommended_modules?.length ?? 0) > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {seg.recommended_modules.map(m => <span key={m} className="px-1.5 py-0.5 bg-accent-muted text-accent text-xs rounded">{m}</span>)}
+                    {(seg.recommended_modules ?? []).map(m => <span key={m} className="px-1.5 py-0.5 bg-accent-muted text-accent text-xs rounded">{m}</span>)}
                   </div>
                 )}
 
